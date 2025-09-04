@@ -1,0 +1,4738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unlimifish v.01</title>
+  
+<style>
+
+/* fluorescent big name */
+.fx-bigname .fx-fluoro{
+  background: linear-gradient(90deg, #fff, #b9a7ff 35%, #7a4cff 70%, #fff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* subtle purple aura for shadow tier */
+.fx-bigname.is-shadow-name{
+  text-shadow:
+    0 0 10px rgba(140,90,255,.35),
+    0 0 22px rgba(110,40,255,.28);
+}
+
+/* quick shimmer sweep clipped to the name box */
+.fx-shadow-shimmer{
+  position: absolute; inset: -6px -12px; pointer-events: none; overflow: hidden;
+  background:
+    conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,0), rgba(255,255,255,.14) 12%, rgba(255,255,255,0) 24%) ,
+    radial-gradient(circle at 50% 120%, rgba(120,0,255,.25), transparent 40%);
+  mix-blend-mode: screen;
+  opacity: 0; transform: translateX(-45%);
+  animation: fxShimmer 1.15s ease-out forwards;
+}
+@keyframes fxShimmer{
+  0%   { opacity: 0;   transform: translateX(-45%); }
+  25%  { opacity: .25; }
+  100% { opacity: 0;   transform: translateX(45%); }
+}
+
+/* gold +N badge */
+.fx-prestige-badge{
+  position: absolute; right: -10px; top: -10px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 999px;
+  font: 900 12px/1 system-ui, ui-sans-serif;
+  background: linear-gradient(135deg, #ffd84a, #ff9f1c);
+  color: #3a2800;
+  box-shadow: 0 2px 10px rgba(255,190,40,.35), inset 0 0 0 1px rgba(255,255,255,.35);
+}
+.fx-prestige-badge .pb-ico{ width:14px; height:14px; fill: currentColor; filter: drop-shadow(0 0 6px rgba(255, 216, 74, .45)); }
+
+
+
+/* Global opt-out for motion-heavy effects */
+@media (prefers-reduced-motion: reduce){
+  * { animation: none !important; transition: none !important; }
+}
+
+/* Our explicit mobile performance mode */
+.mobile-perf #waterFX,
+.mobile-perf .swimmer-layer,
+.mobile-perf .swimmer { display: none !important; }
+
+.mobile-perf .castbar {
+  /* remove GPU-heavy blur to reduce paint cost */
+  backdrop-filter: none !important;
+  background: rgba(11,21,48,0.92) !important;
+}
+
+/* Tone down glows/shadows on mobile to reduce composite cost */
+.mobile-perf .glow, 
+.mobile-perf .onfire::before,
+.mobile-perf .panel,
+.mobile-perf .fx-coin {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+
+
+#sellAllBtn:disabled {
+  filter: grayscale(0.6) brightness(0.8);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.sellall-popup {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  background: rgba(0,0,0,0.6);
+  color: #ffca2b;
+  font-size: 28px;
+  font-weight: 900;
+  padding: 12px 24px;
+  border-radius: 12px;
+  text-shadow: 0 0 12px rgba(255, 202, 43, 0.8);
+  opacity: 0;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.sellall-popup.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+
+
+/* === Fishing Level UI === */
+/* Layout: left (label+value) and right (bar) */
+#fishLevelRow.stat-row.fish-level-row{
+  display:grid;
+  grid-template-columns: auto 1fr;
+  align-items:center;
+  gap:12px;
+  padding:12px 14px;
+  margin-bottom:10px;
+  border-radius:12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+}
+
+.fish-level-left{
+  display:flex; align-items:baseline; gap:8px; min-width:0;
+}
+.fish-level-label{
+  font-weight:800; opacity:.9; letter-spacing:.3px; font-size:18px;
+}
+.fish-level-val{
+  font-weight:900; font-size:28px; line-height:1;
+  color:#ffd84a; text-shadow: 0 0 10px rgba(255,216,74,.35);
+}
+.fish-level-suffix{
+  font-weight:800; opacity:.8; font-size:16px;
+}
+
+/* Bar */
+.fish-level-right{ min-width:0; }
+.xpbar{
+  position:relative; width:100%; height:18px;
+  border-radius:999px; overflow:hidden;    /* prevent spill past rounded ends */
+  background: rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+}
+.xpbar-fill{
+  height:100%; width:0%; border-radius:999px;
+  background: linear-gradient(90deg, #ffd84a, #ffb84a);
+  filter: drop-shadow(0 0 8px rgba(255,216,74,.35));
+  transition: width .28s ease;
+}
+.xpbar-text{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  padding:0 8px;              /* keeps text away from edges */
+  font: 800 12px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: #1b1b1b;             /* readable on bright fill */
+  text-shadow: 0 1px 0 rgba(255,255,255,.35);
+  mix-blend-mode: normal;     /* avoids the faint ghosting you saw */
+  white-space: nowrap;
+  pointer-events:none;
+}
+
+/* Subtle pulse on level-up (unchanged) */
+#fishLevelRow.pulse{ animation:lvlPulse .7s ease; }
+@keyframes lvlPulse{
+  0%{ transform:scale(1); box-shadow:0 2px 12px rgba(0,0,0,.15); }
+  40%{ transform:scale(1.02); box-shadow:0 6px 20px rgba(255,216,74,.25); }
+  100%{ transform:scale(1); box-shadow:0 2px 12px rgba(0,0,0,.15); }
+}
+
+/* center toast */
+.levelup-toast{
+  position:fixed; left:48%; top:25%; transform:translate(-50%,-50%);
+  padding:12px 18px; border-radius:14px;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(3px);
+  border: 1px solid rgba(255,255,255,.2);
+  color:#ffd84a; font: 900 22px/1.1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  text-shadow: 0 0 12px rgba(255,216,74,.4);
+  animation: toastUp 1.8s ease forwards;
+  pointer-events:none; z-index: 2000;
+}
+@keyframes toastUp{
+  0%{ opacity:0; transform:translate(-50%,-50%) scale(.92); }
+  10%{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+  80%{ opacity:1; }
+  100%{ opacity:0; transform:translate(-50%,-64%) scale(1.02); }
+}
+
+
+
+.fish-badges .star-badge { margin-left: 6px; letter-spacing: 1px; filter: drop-shadow(0 0 2px rgba(255,215,0,.35)); }
+
+/* Combo break shards + pop */
+.combo-shard {
+  position: absolute;
+  z-index: 1343;
+  font: 900 22px/1.1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  color: #ffd84a;
+  text-shadow: 0 0 10px rgba(255,216,74,.65), 0 0 20px rgba(255,216,74,.35);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.combo-break-pop {
+  animation: comboBreakPop .28s ease-out;
+}
+@keyframes comboBreakPop {
+  0%   { transform: scale(1);    filter: saturate(1); }
+  35%  { transform: scale(1.12); filter: saturate(1.4) brightness(1.15); }
+  100% { transform: scale(.92);  filter: saturate(.9)  brightness(.9); }
+}
+
+/* ===== Combo HUD ===== */
+.combo-hud {
+  position: absolute;
+  top: 66%;
+  left: 46%;
+  transform: translate(-50%,-50%) scale(var(--hud-scale));
+  z-index: 1333;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font: 900 20px/1.1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  color: #ffd84a;
+  text-shadow: 0 0 10px rgba(255, 216, 74, .65), 0 0 20px rgba(255, 216, 74, .35);
+  background: rgba(0,0,0,.25);
+  backdrop-filter: blur(2px);
+  transform-origin: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .18s ease, filter .18s ease, color .25s linear, text-shadow .25s linear;
+  --hud-scale: 1;
+  --hud-jitter: 0px;
+  --hud-speed: 700ms;
+                  
+  color: hsl(var(--hud-hue), 85%, 65%);
+  text-shadow:
+    0 0 10px hsl(var(--hud-hue), 90%, 60% / .65),
+    0 0 20px hsl(var(--hud-hue), 90%, 60% / .35);
+}
+.combo-hud.show {
+  opacity: 1;
+}
+.combo-hud.pulse {
+  animation: hudPulse var(--hud-speed) ease-in-out infinite;
+}
+@keyframes hudPulse {
+  0%   { transform: translate(0,0) scale(var(--hud-scale)); }
+  20%  { transform: translate(var(--hud-jitter), 0) scale(calc(var(--hud-scale) * 1.03)); }
+  40%  { transform: translate(calc(var(--hud-jitter) * -1), 0) scale(var(--hud-scale)); }
+  60%  { transform: translate(var(--hud-jitter), 0) scale(calc(var(--hud-scale) * 1.03)); }
+  80%  { transform: translate(calc(var(--hud-jitter) * -1), 0) scale(var(--hud-scale)); }
+  100% { transform: translate(0,0) scale(var(--hud-scale)); }
+}
+
+
+/* Now anchored INSIDE the play/canvas container */
+.fx-bigname {
+  position: absolute;        /* changed from fixed */
+  left: 50%; top: 30%;
+  transform: translate(-50%, -50%) scale(0.9);
+  font-size: 28px;
+  font-weight: 900;          /* only the <b> will be bold; rest normal if present */
+  color: white;
+  text-align: center;
+  text-shadow: 0 0 12px rgba(0,0,0,0.7), 0 0 22px rgba(255,255,255,0.6);
+  opacity: 0;
+  animation: bigNamePulse 1.6s ease-out forwards;
+  pointer-events: none;
+  z-index: 1200;
+}
+
+@keyframes bigNamePulse {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+}
+
+.fx-bigname-sub {
+  position: absolute;        /* changed from fixed */
+  left: 50%; top: 24%;       /* centered above the big name */
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  opacity: 0;
+  text-shadow: 0 0 8px rgba(0,0,0,0.6);
+  animation: fxBigNameSub 1.6s ease-out forwards;
+  z-index: 1200;             /* match/just under .fx-bigname */
+  pointer-events: none;
+}
+
+@keyframes fxBigNameSub {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  60%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+
+
+//Header logic
+header {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  background: linear-gradient(180deg, rgba(255,255,255,.03), transparent);
+}
+
+/* flex container with brand + money spaced apart */
+.mast {
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* center the brand+money block as a whole */
+  gap: 70px;                /* spacing between brand and money */
+  margin: 0 auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;                 /* still a tight gap between fish and title */
+}
+
+.header-icon {
+  width: 46px;              /* scaled up */
+  height: 46px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.brand h1 {
+  margin: 0;
+  line-height: 1;
+  white-space: nowrap;
+  font-size: 1.6rem;        /* larger font to match money */
+  font-weight: 900;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.6); /* clean drop shadow */
+}
+
+.money {
+  font-size: 1.6rem;        /* matches title */
+  font-weight: 900;
+  white-space: nowrap;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.6); /* clean drop shadow */
+}
+
+
+/* Prestige wrapper keeps shadow’s pill but adds glow */
+.prestige-wrap {
+  position: relative;
+  padding: .01rem .4rem;
+  border-radius: .5rem;
+  border: 1px solid rgba(255,255,255,.2);
+  background:
+    linear-gradient(180deg, #1a1a1a, #000);        /* shadow base */
+  box-shadow:
+    0 0 8px rgba(255,255,255,.08) inset,
+    0 0 18px rgba(255,255,255,.06);
+}
+
+/* Iridescent name shimmer whose hue depends on level via --pHue */
+.prestige-name {
+  background: linear-gradient(90deg,
+    hsl(0,   100%, 80%),
+    hsl(60,  100%, 70%),
+    hsl(120, 100%, 80%),
+    hsl(180, 100%, 75%),
+    hsl(240, 100%, 80%),
+    hsl(300, 100%, 78%),
+    hsl(360, 100%, 80%)
+  );
+  background-size: 400% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: hue-rotate(var(--pHue, 0deg));
+  animation: prestigeWave 3.2s linear infinite;
+  text-shadow: 0 0 6px rgba(255,255,255,.25);
+}
+
+@keyframes prestigeWave {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 400% 50%; }
+}
+
+/* Compact +k badge */
+.prestige-badge{
+  display:inline-block;
+  padding: 0 .35rem;
+  border-radius: .35rem;
+  font-weight: 900;
+  letter-spacing: .3px;
+  background: linear-gradient(90deg, #fff, #ffd84a, #fff);
+  color:#111;
+  filter: hue-rotate(var(--pHue, 0deg));
+  box-shadow: 0 0 8px rgba(255,255,255,.25);
+}
+
+
+
+
+
+/* Fish log rarity header styling */
+.fishlog-header {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 0 8px rgba(0,0,0,0.25) inset;
+}
+.fishlog-header .meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+//Water engine CSS
+/* Make sure your fishing window can hold an absolutely positioned canvas */
+#fishingWindow, .fishing-window, #gameWindow, #game, #scene {
+  position: relative;
+  overflow: hidden; /* keeps waves inside */
+}
+
+/* The water background canvas lives behind everything and ignores clicks */
+#waterFX {
+  position: fixed;
+  inset: 0;
+  z-index: 0;          
+  pointer-events: none;
+ }
+
+/* Base: the bar itself */
+#bar {
+  position: relative; 
+  overflow: visible;        /* allow glow to extend */
+  z-index: 1;               /* sit above background */
+  isolation: isolate;       /* create a stacking context so ::before z-index works */
+}
+
+/* Pulsing outer glow using a pseudo-element */
+#bar.onfire::before{
+  content:"";
+  position:absolute; 
+  inset:-4px;               /* slightly larger than the bar */
+  border-radius:12px;
+  pointer-events:none;
+  z-index: 2;               /* render above the bar (bump to 3 if needed) */
+  background: transparent;
+  will-change: box-shadow, opacity, filter;
+  /* default hue so it still shows even if JS hasn't set vars yet */
+  --fire-hue: 140deg;
+
+  /* Multi-ring glow; uses your CSS vars set by JS */
+  box-shadow:
+    0 0 calc(6px + 16px * var(--fire,0)) hsl(var(--fire-hue) 95% 60% / .70),
+    0 0 calc(12px + 28px * var(--fire,0)) hsl(var(--fire-hue) 95% 55% / .45),
+    0 0 calc(20px + 44px * var(--fire,0)) hsl(var(--fire-hue) 95% 50% / .25);
+
+  opacity: calc(0.18 + 0.58 * var(--fire,0));
+  filter: saturate(calc(1 + var(--fire,0)*0.6));
+  animation: firePulse var(--fire-speed, 900ms) ease-in-out infinite;
+}
+
+/* Simple pulse — tweak to taste */
+@keyframes firePulse {
+  0%   { opacity: calc(0.16 + 0.50 * var(--fire,0)); filter: saturate(calc(1 + var(--fire,0)*0.4)); }
+  50%  { opacity: calc(0.24 + 0.70 * var(--fire,0)); filter: saturate(calc(1 + var(--fire,0)*0.8)); }
+  100% { opacity: calc(0.16 + 0.50 * var(--fire,0)); filter: saturate(calc(1 + var(--fire,0)*0.4)); }
+}
+/* effect layer */
+.bar-splash {
+  position:absolute; inset:0;
+  pointer-events:none; z-index:5;  /* above bar visuals */
+  overflow:visible;
+}
+
+/* expanding water ring */
+.bar-splash .splash-ring{
+  position:absolute; left: var(--ox, 50%); top: var(--oy, 50%);
+  transform: translate(-50%,-50%) scale(0.85);
+  width: 90%; height: 70%;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 2px rgba(130,210,255, .55),
+           0 0 16px rgba(60,170,255, .25);
+  background: radial-gradient(120% 220% at 50% 120%,
+    rgba(190,235,255,.10) 0%,
+    rgba(110,195,255,.08) 40%,
+    rgba(50,150,255,.05) 65%,
+    rgba(0,0,0,0) 100%);
+  filter: blur(0.2px);
+  opacity: var(--ringAlpha, .35);
+  animation: ringExpand 520ms ease-out forwards;
+}
+
+/* droplets fired upward/outward */
+.bar-splash .drop{
+  position:absolute; left: var(--ox, 50%); top: var(--oy, 50%);
+  width: 6px; height: 6px; border-radius:50%;
+  transform: translate(-50%,-50%);
+  background: radial-gradient(circle at 30% 30%, #e9f7ff 0%, #7fd3ff 55%, #39a8f7 100%);
+  box-shadow: 0 0 6px rgba(100,200,255,.5);
+  opacity: .95;
+  animation: dropArc 640ms cubic-bezier(.2,.6,.2,1) forwards;
+}
+
+/* soft sheen across the bar (quick) */
+.bar-splash .sheen{
+  position:absolute; inset:0; border-radius:10px;
+  background: linear-gradient( to bottom,
+    rgba(255,255,255,.18) 0%,
+    rgba(255,255,255,.08) 22%,
+    rgba(255,255,255,0)   100%);
+  mix-blend-mode: screen;
+  opacity: var(--sheenAlpha, .2);
+  animation: sheenFade 380ms ease-out forwards;
+}
+
+@keyframes ringExpand {
+  to { transform: translate(-50%,-50%) scale(1.25); opacity: 0; }
+}
+@keyframes dropArc {
+  0%   { transform: translate(-50%,-50%) translate(0,0);   opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate(-50%,-50%)
+                     translate(var(--dx,0px), var(--dy, -24px))
+                     translateY(-8px); opacity: 0; }
+}
+@keyframes sheenFade {
+  to { opacity: 0; }
+}
+
+
+/* TROPHIES */
+.panel.trophies{
+  position: absolute;
+  left: 13px;
+  top: var(--trophies-top, 740px);   /* computed in JS */
+  width: 280px;
+  max-height: calc(100vh - var(--trophies-top, 740px) - var(--trophies-bottom-gap, 8px));
+  min-height: 220px;
+  padding: 10px 12px;
+  background: rgba(8, 20, 36, 0.75);
+  border: 1px solid rgba(135,170,255,.2);
+  border-radius: 10px;
+  backdrop-filter: blur(2px);
+  overflow: auto;
+  z-index: 10;
+}
+.panel.trophies .panel-title{
+  font-weight:700;
+  letter-spacing:.3px;
+  margin-bottom:6px;
+}
+.trophies-list{
+  list-style:none;
+  margin:0; padding:0;
+}
+.trophies-list li{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:6px 8px;
+  margin:4px 0;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:8px;
+  background:rgba(255,255,255,.04);
+  font-size:13px;
+}
+.trophies-rank{
+  width:22px; text-align:center; font-weight:700; opacity:.8;
+}
+.trophies-name{
+  flex:1; line-height:1.2;
+}
+.trophies-value{
+  font-variant-numeric: tabular-nums;
+  font-weight:600;
+  white-space:nowrap;
+}
+.trophies-footer{
+  display:flex; justify-content:flex-end; gap:8px; margin-top:8px;
+}
+#clearTrophiesBtn{
+  font-size:12px; padding:4px 8px; border-radius:6px; 
+  border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.06); color:#fff; cursor:pointer;
+}
+#clearTrophiesBtn:hover{ background:rgba(255,255,255,.12); }
+
+
+
+
+
+
+    :root{
+      --bg:#0b1220; --panel:#0f1a2e; --muted:#92a3c2; --accent:#49b3ff; --good:#48d597; --bad:#ff6b6b;
+      --tier-trash:#7a7a7a; --tier-common:#7fb069; --tier-uncommon:#49b3ff; --tier-rare:#4f46e5;
+      --tier-epic:#b05cff; --tier-legendary:#ffb703; --tier-artifact:#ff6b6b; --tier-shadow:#101010;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; background:linear-gradient(180deg,#08101d,#0b1220 40%, #09101d 100%); color:#dbe7ff; font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"}
+    header{display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,.08); background:linear-gradient(180deg, rgba(255,255,255,.03), transparent)}
+    header h1{font-size:18px; margin:0; letter-spacing:.5px}
+    header .money{margin-left:auto; font-weight:700}
+    .wrap{display:grid; grid-template-columns: 280px 1fr 360px; gap:14px; padding:14px}
+    .card{background:var(--panel); border:1px solid rgba(255,255,255,.07); border-radius:14px; box-shadow: 0 10px 30px rgba(0,0,0,.25) inset, 0 10px 20px rgba(0,0,0,.15); overflow:hidden}
+    .card h2{margin:0; padding:10px 12px; font-size:14px; color:#9fb4db; border-bottom:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.02)}
+    .card .body{padding:12px}
+    .row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:6px 0}
+    .muted{color:var(--muted)}
+    .btn{appearance:none; border:none; border-radius:10px; background:linear-gradient(180deg,#1e2b48,#15233d); color:#e6f0ff; padding:10px 12px; font-weight:700; cursor:pointer; box-shadow: 0 4px 0 #0a1426; transition:.12s transform, .12s filter}
+    .btn:hover{filter:brightness(1.08)}
+    .btn:active{transform:translateY(1px)}
+    .btn.secondary{background:linear-gradient(180deg,#253353,#1a2947)}
+    .btn.success{background:linear-gradient(180deg,#2f8c63,#237b57)}
+    .btn.danger{background:linear-gradient(180deg,#8c2f2f,#7b2323)}
+    .pill{border-radius:999px; padding:.1rem .5rem; font-size:12px; font-weight:700}
+    .tier{display:inline-flex; align-items:center; gap:6px}
+    .tier .dot{width:10px; height:10px; border-radius:50%}
+
+    .stats-list .row{font-size:14px}
+
+    .play{display:grid; grid-template-rows:auto auto 1fr; gap:12px; padding:12px}
+    #water{width:100%; height:400px; display:block; border-radius:12px; transparent !important;}
+    .castbar{height:54px; background:#0b1530; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px; display:grid; gap:8px}
+    .bar{position:relative; height:14px; background:rgba(255,255,255,.06); border-radius:999px; overflow:hidden}
+    .zone{position:absolute; top:0; bottom:0; border-radius:999px; background:linear-gradient(90deg, rgba(89,255,183,.3), rgba(72,213,151,.7)); box-shadow:0 0 12px rgba(72,213,151,.6)}
+    .marker{position:absolute; top:-2px; width:8px; height:18px; background:#fff; border-radius:4px; box-shadow:0 0 8px rgba(255,255,255,.8)}
+    .log{height:436px; overflow:auto; background:rgba(255,255,255,.03); border-radius:10px; padding:8px; border:1px solid rgba(255,255,255,.06); font-size:13px}
+
+    .list{display:grid; gap:8px; max-height:420px; overflow:auto}
+    .item{display:grid; grid-template-columns: 1fr auto; gap:8px; padding:8px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.02); border-radius:10px}
+    .item h3{margin:0; font-size:14px}
+    .item .meta{font-size:12px; color:#9eb0d2}
+    .shop .price{color:#9fd0ff; font-weight:700}
+
+    .grid2{display:grid; gap:12px; grid-template-columns:1fr 1fr}
+    .footer{display:flex; gap:8px; flex-wrap:wrap}
+
+    .t-trash{color:var(--tier-trash)}
+    .t-common{color:var(--tier-common)}
+    .t-uncommon{color:var(--tier-uncommon)}
+    .t-rare {
+  color: #4aa3ff; /* your blue */
+  text-shadow:
+    0 0 2px #000,
+    0 0 6px #4aa3ff,
+    0 0 12px #4aa3ff;
+}
+    .t-epic {
+  color: #c77dff; /* your purple */
+  text-shadow:
+    0 0 2px #000,         /* dark outline for readability */
+    0 0 6px #c77dff,      /* soft glow */
+    0 0 12px #c77dff;     /* extended glow */
+}
+    .t-legendary{
+  color: var(--tier-legendary); /* #ffb703 by your vars */
+  text-shadow:
+    0 0 2px #000,            /* dark edge for readability */
+    0 0 6px currentColor,    /* soft glow */
+    0 0 14px currentColor;   /* extended glow */
+}
+    .t-treasure{
+  color: #ffd27a; /* you already use this */
+  text-shadow:
+    0 0 2px #000,
+    0 0 6px currentColor,
+    0 0 14px currentColor;
+}
+    .t-artifact{
+  color: var(--tier-artifact); /* #ff6b6b by your vars */
+  text-shadow:
+    0 0 2px #000,
+    0 0 6px currentColor,
+    0 0 14px currentColor;
+}
+    .t-shadow {
+  color: #fff;
+  background: linear-gradient(180deg, #1a1a1a, #000);
+  padding: .01rem .4rem;
+  border-radius: .5rem;
+  border: 1px solid rgba(255,255,255,.15);
+  
+
+  /* 👇 fixes the overlap on multi-line text */
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone; /* for Safari/Chrome */
+}
+
+    .kbd{padding:.1rem .35rem; border:1px solid rgba(255,255,255,.25); border-bottom-width:2px; border-radius:6px; font-size:12px; color:#bcd3ff}
+    .help{font-size:12px; color:#a4b8d8}
+
+   /* Make .play the positioning context */
+.play { position: relative; }
+
+/* FX overlay can stay fixed; children will be fixed too */
+#fx{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 9999; /* same neighborhood as .sellall-popup */
+}
+
+/* Float text — fixed & centered like your toasts */
+.fx-float{
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%,-50%);
+  font-weight: 800;
+  letter-spacing: .3px;
+  text-shadow: 0 2px 6px rgba(0,0,0,.35);
+  animation: floatUp 1000ms ease-out forwards;
+  z-index: 9999;
+}
+.fx-float.small{ font-size:14px; }
+.fx-float.big{   font-size:20px; }
+
+/* Ripple — fixed & centered too */
+.fx-ripple{
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  transform: translate(-50%,-50%) scale(.2);
+  opacity: .7;
+  animation: ripple 900ms ease-out forwards;
+  z-index: 9999;
+}
+
+
+    /* Coins: small, glossy, GPU-friendly */
+.fx-coin{
+  position:absolute;
+  width:12px; height:12px;
+  border-radius:50%;
+  z-index: 9999;
+  background: radial-gradient(circle at 30% 30%, #ffe585 0%, #ffca2b 55%, #d89a05 100%);
+  box-shadow:
+    inset -2px -3px 0 rgba(0,0,0,.22),
+    0 0 6px rgba(255,202,43,.35);
+  will-change: transform, opacity, filter;
+  pointer-events:none;
+}
+.fx-coin{ z-index: 10050; }
+
+/* subtle specular highlight */
+.fx-coin::before{
+  content:"";
+  position:absolute; inset:0;
+  border-radius:50%;
+  background: radial-gradient(circle at 25% 25%, rgba(255,255,255,.85), rgba(255,255,255,0) 50%);
+  mix-blend-mode: screen;
+  opacity:.75;
+}
+
+/* quick Y flip; we’ll vary duration per coin in JS */
+@keyframes coinFlip { 
+  0% { filter: brightness(1) } 
+  50% { filter: brightness(1.25) } 
+  100% { filter: brightness(1) }
+}
+
+/* little star burst on impact */
+.fx-spark{
+  position:absolute; width:6px; height:6px;
+  background: radial-gradient(circle, #fff, rgba(255,255,255,0) 70%);
+  border-radius:50%;
+  box-shadow: 0 0 8px rgba(255,255,255,.8), 0 0 14px #ffca2b;
+  pointer-events:none; will-change: transform,opacity;
+  animation: sparkFade 420ms ease-out forwards;
+}
+@keyframes sparkFade{
+  from { opacity:1; transform:translate(-50%,-50%) scale(.7); }
+  to   { opacity:0; transform:translate(-50%,-50%) scale(1.8); }
+}
+
+/* low-motion & mobile-perf already exist in your CSS; this keeps coins cheap */
+@media (prefers-reduced-motion: reduce){
+  .fx-coin{ animation: none !important; }
+}
+.mobile-perf .fx-coin{ filter:none !important; box-shadow:none !important; }
+
+
+
+    .pulse{animation:pulse 650ms ease-out}
+    .shake{animation:shakeX 420ms ease-out}
+
+    @keyframes floatUp{0%{opacity:0; transform:translate(-50%,-10%)} 15%{opacity:1} 100%{opacity:0; transform:translate(-50%,-120%)} }
+    @keyframes ripple{to{opacity:0; transform:translate(-50%,-50%) scale(4)}}
+    @keyframes coinFall{0%{transform:translateY(-10%)} 100%{transform:translateY(110%); opacity:0}}
+    @keyframes pulse{0%{transform:scale(1)} 45%{transform:scale(1.12)} 100%{transform:scale(1)}}
+    @keyframes shakeX{0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-2px)} 80%{transform:translateX(2px)}}
+//fish name glow star
+/* Species (the actual fish type) pops a bit more for quick scanning */
+.fish-type-accent {
+  color: #fff;              /* ensure bright */
+  text-shadow: 0 0 6px rgba(255,255,255,0.35);
+}
+
+/* Prefix and title: present but subtler */
+.fish-prefix { opacity: 0.9; filter: saturate(1.1); }
+.fish-title  { opacity: 0.95; font-style: italic; }
+
+/* Badges for named/titled fish */
+.fish-badges { margin-left: 4px; }
+.fish-badge {
+  display: inline-block;
+  font-size: 0.9em;
+  vertical-align: baseline;
+  opacity: 0.9;
+}
+
+/* Named gets a gentle pulse */
+.named-badge {
+  animation: fishPulse 2.2s ease-in-out infinite;
+}
+
+/* Titled gets a faint shimmer */
+.titled-badge {
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+  animation: fishShimmer 3.5s linear infinite;
+}
+
+@keyframes fishPulse {
+  0%, 100% { transform: scale(1);   opacity: 0.85; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+@keyframes fishShimmer {
+  0%   { filter: drop-shadow(0 0 0px rgba(255,215,0,0.0)); }
+  50%  { filter: drop-shadow(0 0 6px rgba(255,215,0,0.5)); }
+  100% { filter: drop-shadow(0 0 0px rgba(255,215,0,0.0)); }
+}
+
+
+
+/* --- HARD STACKING ORDER RESET --- */
+/* ocean background */
+#waterFX {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 0 !important;            /* sits above body paint, but below UI */
+  pointer-events: none !important;
+}
+
+/* every direct child of <body> EXCEPT the ocean is above it */
+body > *:not(#waterFX):not(#fx) {
+   position: relative !important;
+   z-index: 1 !important;
+}
+
+/* fishing canvas must be transparent so ocean shows through */
+#water {
+  background: transparent !important;
+}
+
+/* (optional) make just the cast bar float higher if you like */
+.castbar { z-index: 2 !important; }
+/* Let the ocean show through the fishing window card */
+main.card{
+  background: transparent !important;      /* remove the solid panel under .play */
+  /* keep the frame if you like */
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25) inset, 0 10px 20px rgba(0,0,0,.15);
+}
+
+/* .play itself doesn’t need a bg — leave it transparent */
+.play{ background: transparent !important; }
+
+/* Bigger fishing viewport */
+#water{
+  height: 520px;                /* was ~400px */
+}
+
+/* Cast/Catch bar a touch lower */
+.castbar{
+  margin-top: 10px;
+}
+
+/* Log sits a little lower and is taller */
+.log{
+  margin-top: 22px;
+  height: 200px;                /* was ~136px */
+}
+
+/* Ensure the play column can grow nicely */
+.play{
+  background: transparent !important;
+  /* if your grid ever clips, this makes the column flexible */
+  min-height: 0;
+}
+/* === Mobile layout fixes === */
+@media (max-width: 768px) {
+  /* Stack everything in one column */
+  .wrap {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  /* Header: tighten spacing/sizes */
+  .mast { gap: 14px; }
+  .header-icon { width: 32px; height: 32px; }
+  .brand h1, .money { font-size: 1.1rem; }
+
+  /* Keep trophies from floating off-screen */
+  .panel.trophies {
+    position: static;
+    width: auto;
+    max-height: none;
+    margin: 10px 12px 0;
+  }
+
+  /* Fishing area: reduce height on phones */
+  #water {
+    height: 38vh !important;  /* ~40% of screen; tweak to taste */
+  }
+
+  /* Make the cast/hook controls stick to the bottom and always visible */
+  .castbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 99; /* above canvas & waves */
+    margin: 0;   /* remove extra gaps */
+    border-radius: 12px 12px 0 0;
+    /* add a slight blur/glass so it stands out */
+    background: rgba(11, 21, 48, 0.85) !important;
+    backdrop-filter: blur(6px);
+  }
+
+  /* Let buttons wrap nicely */
+  .castbar .row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .castbar .row > div:first-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* side-by-side */
+    gap: 8px;
+    width: 100%;
+  }
+  #castBtn, #hookBtn {
+    width: 100%;
+    font-size: 16px;
+    padding: 12px 10px;
+  }
+
+  /* Make logs & lists a bit taller on phones */
+  .log { height: 30vh; }
+
+  /* So the ocean stays behind everything */
+  body > *:not(#waterFX) { z-index: 1 !important; }
+}
+
+/* Tiny phones */
+@media (max-width: 380px) {
+  .brand h1, .money { font-size: 1rem; }
+  #water { height: 34vh !important; }
+}
+/* --- Mobile-only: stop log from covering HUD, lift HUD layers --- */
+@media (max-width: 820px) {
+  /* Keep the log inside layout (NOT fixed), scroll its own content, and sit below HUD */
+  #log, #logBox, .log {
+    position: relative !important;
+    max-height: 32vh;
+    overflow: auto;
+    z-index: 200 !important;       /* below HUD layers */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Lift HUD layers WITHOUT changing their positions */
+  .combo-hud {
+    position: relative !important; /* ensure z-index applies */
+    z-index: 3000 !important;
+  }
+  #castHUD, #castBarWrap, .cast-bar {
+    position: relative !important;
+    z-index: 2800 !important;
+  }
+  #catchZone, #hookZone, .catch-zone {
+    position: relative !important;
+    z-index: 2801 !important;      /* just above the bar */
+  }
+
+  /* FX stays under HUD */
+  #fx, #fxRoot {
+    position: fixed;                /* yours probably already is */
+    z-index: 2600 !important;
+    pointer-events: none;
+  }
+
+  /* Safari quirk: neutralize transforms that can trap fixed/absolute */
+  #hudRoot, #uiRoot, #gameRoot {
+    transform: none !important;
+  }
+}
+/* Mobile: lift the cast bar (and thus the catch zone inside it) by 200px */
+@media (max-width: 820px) {
+  .castbar {
+    transform: translateY(-60px) !important; /* move up */
+    z-index: 5000 !important;                 /* above the log */
+  }
+
+  /* make sure the meter bits render above the log text too */
+  #bar, #zone, #marker { z-index: 5001 !important; }
+
+  /* keep the log underneath */
+  #log, .log { z-index: 200 !important; }
+}
+
+  </style>
+</head>
+<body>
+  <header>
+  <div class="mast">
+    <div class="brand">
+      <img src="fish.png" alt="Fish Icon" class="header-icon">
+      <h1>Unlimifish v0.1</h1>
+    </div>
+    <div id="money" class="money">$0</div>
+
+
+  </div>
+</header>
+
+
+
+
+  <div id="fx"></div>
+  <div class="wrap">
+    <section class="card">
+      <h2>📊 Stats</h2>
+      <div class="body stats-list" id="stats"></div>
+      <div class="body">
+
+        <div class="row">
+          <label for="location">Location</label>
+          <select id="location" class="btn secondary" style="width:160px"></select>
+        </div>
+
+
+
+<!-- TROPHIES PANEL -->
+<div id="trophiesPanel" class="panel trophies">
+  <div class="panel-title">🏆 Trophy Catches</div>
+  <ul id="trophiesList" class="trophies-list"></ul>
+  <div class="trophies-footer">
+    <button id="clearTrophiesBtn" title="Reset highscores">Reset</button>
+  </div>
+</div>
+
+        <div class="help">Unlock new waters with Boat upgrades. Rarer fish favor deeper waters.</div>
+      </div>
+      <div class="body">
+        <button class="btn danger" id="resetBtn">Reset Save</button>
+      </div>
+    </section>
+
+    <main class="card">
+      <h2>🎮 Fishing</h2>
+      <div class="play">
+        <canvas id="water" width="960" height="320"></canvas>
+        <div class="castbar">
+          <div class="row">
+            <div>
+              <button class="btn" id="castBtn">Cast <span class="help">(Spacebar)</span></button>
+              <button class="btn success" id="hookBtn" disabled>Hook <span class="help">(Spacebar)</span></button>
+            </div>
+            <div class="help">Active: Time your hook in the green zone. Passive unlocks via Auto-Reel.</div>
+          </div>
+          <div class="bar" id="bar">
+            <div class="zone" id="zone" style="left:40%; width:20%"></div>
+            <div class="marker" id="marker" style="left:0%"></div>
+          </div>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+    </main>
+
+    <aside class="card">
+      <h2>🎒 Inventory</h2>
+      <div class="body">
+        <div class="footer" style="justify-content:space-between; align-items:center">
+          <div class="help">Sell catches to upgrade gear.</div>
+          <button class="btn success" id="sellAllBtn">Sell All</button>
+        </div>
+      </div>
+      <div class="body list" id="inventory"></div>
+
+      <h2>🗒️ Fish Log</h2>
+      <div class="body list" id="fishlog"></div>
+
+      <h2>🛒 Shop</h2>
+      <div class="body list shop" id="shop"></div>
+    </aside>
+  </div>
+
+  <script>
+
+
+const PRESTIGE_UNLOCK_LEVEL = 25;
+
+function checkPrestigeUnlock(){
+  const eligible = canPrestige();
+  if (eligible && !state._prestigeNotified){
+    state._prestigeNotified = true;
+    logMsg(`⭐ <b>Prestige unlocked!</b> You can reset now for +1 <b>Unlimiscale</b>. A new <b>Prestige</b> button has appeared next to Reset Save.`);
+    ensurePrestigeButton();
+  }
+  updatePrestigeButton();
+  save();
+}
+// === Prestige Button (real UI) ===
+function ensurePrestigeButton(){
+  const reset = document.getElementById('resetBtn');
+  if (!reset || document.getElementById('prestigeBtn')) return;
+
+  const wrap = reset.parentNode; // same panel section as Reset Save
+  const btn  = document.createElement('button');
+  btn.id = 'prestigeBtn';
+  btn.className = 'btn danger';
+  btn.style.marginLeft = '8px';
+  btn.textContent = 'Prestige';
+  btn.addEventListener('click', handlePrestigeClick);
+  wrap.appendChild(btn);
+
+  updatePrestigeButton();
+}
+
+function updatePrestigeButton(){
+  const btn = document.getElementById('prestigeBtn');
+  if (!btn) return;
+  const eligible = canPrestige();
+  btn.disabled = !eligible;
+  btn.style.display = eligible ? '' : 'none'; // ← hide when not eligible
+  btn.title = eligible
+    ? 'Prestige now for +1 Unlimiscale'
+    : `Reach Fishing Lv. ${PRESTIGE_UNLOCK_LEVEL} to unlock`;
+}
+
+function handlePrestigeClick(){
+  const msg =
+    "Prestige will:\n" +
+    "• Reset your money, inventory, upgrades, and Fishing Level\n" +
+    "• Grant +1 Unlimiscale (permanent prestige currency)\n\n" +
+    "Are you sure you want to prestige?";
+  if (!confirm(msg)) return;
+  doPrestige(); // will award Unlimiscale (see patch below)
+
+  // Also re-render money/inventory/shop since prestige resets economy
+  renderMoney?.();
+  renderInventory?.();
+  renderShop?.();
+
+  // If you show/hide the button based on eligibility, refresh it too
+  updatePrestigeButton?.();
+
+}
+
+// create on load; keep state synced
+document.addEventListener('DOMContentLoaded', () => {
+  ensurePrestigeButton();
+});
+
+
+
+// --- Simple mobile/perf detection ---
+window.PERF = { low: false };
+
+(function detectLowPerf(){
+  const isCoarse = matchMedia('(pointer:coarse)').matches; // touch devices
+  const isSmall  = Math.min(innerWidth, innerHeight) <= 800;
+  const lowMem   = (navigator.deviceMemory && navigator.deviceMemory <= 3);
+  const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Flip on if any condition suggests “phone-ish/low resource”
+  window.PERF.low = !!(isCoarse || isSmall || lowMem || prefersReducedMotion);
+
+  // Add a CSS hook
+  document.documentElement.classList.toggle('mobile-perf', window.PERF.low);
+})();
+
+
+
+// --- DOM hit-test helpers (use real positions at hook time) ---
+function getPctInBar(el, bar){
+  const r = el.getBoundingClientRect();
+  const b = bar.getBoundingClientRect();
+  const centerX = r.left + r.width / 2;
+  return ((centerX - b.left) / b.width) * 100; // 0..100
+}
+function getRangePct(el, bar){
+  const r = el.getBoundingClientRect();
+  const b = bar.getBoundingClientRect();
+  const leftPct  = ((r.left  - b.left) / b.width) * 100;
+  const rightPct = ((r.right - b.left) / b.width) * 100;
+  return { leftPct, rightPct };
+}
+const HOOK_FORGIVENESS_PCT = 0.5; // tweak for mobile thumbs
+
+function isCastHitDOM(){
+  const bar    = document.getElementById('bar');
+  const marker = document.getElementById('marker');
+  const zone   = document.getElementById('zone');
+  if (!bar || !marker || !zone) return null; // signal "no DOM check available"
+
+  const markerPct = getPctInBar(marker, bar);
+  const { leftPct, rightPct } = getRangePct(zone, bar);
+  return markerPct >= (leftPct - HOOK_FORGIVENESS_PCT) &&
+         markerPct <= (rightPct + HOOK_FORGIVENESS_PCT);
+}
+
+
+
+
+
+let castAnimId = null;
+let castStart = 0;
+
+// Ensure global mini exists early in your script
+window.mini = window.mini || {};
+
+function startCastBar(){
+  // cancel any existing loop
+  if (mini.raf) cancelAnimationFrame(mini.raf);
+
+  // resolve marker element
+  const marker = (window.markerEl || document.getElementById('marker'));
+  if (!marker) return;
+
+  // --- seed any missing state so movement always happens ---
+  if (typeof mini.x !== 'number') mini.x = Math.random();          // 0..1
+  if (mini.dir !== -1 && mini.dir !== 1) mini.dir = Math.random() < 0.5 ? -1 : 1;
+  if (typeof mini.speedBase !== 'number') {
+    // fallback if cast() hasn't set it yet
+    mini.speedBase = (typeof speedForRod === 'function') ? speedForRod() : 0.6;
+  }
+  if (typeof mini.jitter !== 'number') mini.jitter = Math.random()*Math.PI*2;
+
+  // treat as active until hook/endMini() says otherwise
+  if (mini.active !== true) mini.active = true;
+
+  let prev = performance.now();
+
+  const step = (now) => {
+    // hard stop if things disappeared
+    if (!mini || !mini.active || !document.body.contains(marker)) return;
+
+    const dtMs = now - prev;
+    prev = now;
+    const frames = dtMs > 0 ? (dtMs / 16.6667) : 1; // ~60fps baseline
+
+    // --- your old behavior, frame-scaled ---
+    mini.jitter += 0.06 * frames;
+    const lf    = 0.5 + 0.5 * Math.sin(mini.jitter);
+    const noise = (Math.random() - 0.5) * 0.15;
+    let mult    = 0.8 + 0.7 * lf + noise;
+
+    if (mini.zone && typeof mini.zone.start === 'number' && typeof mini.zone.width === 'number') {
+      const center = mini.zone.start + mini.zone.width / 2;
+      const span   = (mini.zone.width / 2) || 0.0001;
+      const dist   = Math.abs(mini.x - center) / span;
+      if (Number.isFinite(dist)) {
+        if (dist <= 1) mult *= 0.9;
+        else           mult *= 1.1 + Math.min(0.6, (dist - 1) * 0.6);
+      }
+    }
+
+    const base  = mini.speedBase || 0.6;
+    const speed = Math.max(0.25 * base, Math.min(2.2 * base, base * mult));
+
+    // old delta: speed * 0.01 per frame → scale by frames
+    mini.x += mini.dir * speed * 0.02 * frames;
+
+    // edges: ping-pong + clamp
+    if (mini.x < 0){ mini.x = 0; mini.dir = +1; }
+    if (mini.x > 1){ mini.x = 1; mini.dir = -1; }
+
+    // occasional feint (~0.5% per 60fps frame)
+    if (Math.random() < 0.004 * frames) mini.dir *= -1;
+
+    // draw
+    marker.style.left = (mini.x * 100).toFixed(2) + '%';
+
+    mini.raf = requestAnimationFrame(step);
+  };
+
+  mini.raf = requestAnimationFrame(step);
+}
+
+function stopCastBar(){
+  if (mini && mini.raf) cancelAnimationFrame(mini.raf);
+  // don't flip mini.active here—endMini() already does that for the mini-game lifecycle
+}
+
+
+
+function hueFromCombo(c){
+  const capped = Math.max(0, Math.min(50, c|0)); // focus the ramp up to ~50x
+  const t = capped / 30;                         // 0..1 over 0–50
+  const start = 50;   // ~yellow
+  const end   = 0;    // red
+  return start + (end - start) * t;
+}
+
+
+// Keep intensity growth sensible up to ~50x so glow doesn’t max out too fast
+function intensityFromCombo(c){
+  return Math.max(0, Math.min(1, (c - 1) / (50 - 1))); // 0..1 over 1..50
+}
+
+
+
+//coin animation
+function coinSellFX({ fromEl=null, toEl=document.getElementById('money'), parent=document.getElementById('fx'), count=28 } = {}){
+  const Z_COIN = 10050;
+  if (!parent) parent = document.body;
+  if (!fromEl) fromEl = document.getElementById('sellAllBtn') || parent;
+
+  if (parent && parent.id === 'fx') {
+    parent.style.position = 'fixed';
+    parent.style.pointerEvents = 'none';
+    parent.style.setProperty('z-index', '9999', 'important');
+  }
+
+  const prefersReduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // fallback instead of bail-out
+  if (prefersReduce) count = Math.min(6, count);
+
+  const pRect = parent.getBoundingClientRect();
+  const sRect = fromEl.getBoundingClientRect();
+  const mRect = (toEl ? toEl.getBoundingClientRect() : sRect);
+
+  const startX = (sRect.left + sRect.width/2) - pRect.left;
+  const startY = (sRect.top  + sRect.height/2) - pRect.top;
+  const endX   = (mRect.left + mRect.width/2) - pRect.left;
+  const endY   = (mRect.top  + mRect.height/2) - pRect.top;
+
+  const coins = [];
+  const homingCount    = Math.max(4, Math.round(count * 0.25));
+  const fountainCount  = Math.max(8, count - homingCount);
+
+  function makeCoin() {
+    const c = document.createElement('div');
+    c.className = 'fx-coin';
+    // 👇 rely on transform only; no double offset
+    c.style.left = '0px';
+    c.style.top  = '0px';
+    c.style.zIndex = String(Z_COIN);
+    parent.appendChild(c);
+    return c;
+  }
+
+  // fountain
+  for (let i=0;i<fountainCount;i++){
+    const c = makeCoin();
+    const deg   = -90 + (Math.random()*40 - 20);
+    const rad   = deg * Math.PI/180;
+    const speed = 320 + Math.random()*220;
+    const vx = Math.cos(rad) * speed;
+    const vy = Math.sin(rad) * speed;
+    coins.push({ el:c, x:startX, y:startY, vx, vy, g:1400, life:900+Math.random()*300, age:0, spinMs:260+Math.random()*180, fadeAt:0.75+Math.random()*0.15, homing:false });
+  }
+
+  // homing
+  for (let i=0;i<homingCount;i++){
+    const c = makeCoin();
+    const vx = (Math.random()*2 - 1) * 220;
+    const vy = -(360 + Math.random()*260);
+    coins.push({ el:c, x:startX, y:startY, vx, vy, g:1500, life:1000+Math.random()*400, age:0, spinMs:200+Math.random()*140, fadeAt:0.90, homing:true, seekDelay:180+Math.random()*200, target:{ x:endX+(Math.random()*20-10), y:endY+(Math.random()*10-5) } });
+  }
+
+  let prev = performance.now();
+  function step(now){
+    const dt = Math.min(40, now - prev) / 1000;
+    prev = now;
+    let alive = 0;
+
+    for (const p of coins){
+      if (!p.el) continue;
+      p.age += dt*1000;
+      if (p.age > p.life){ p.el.remove(); p.el=null; continue; }
+      alive++;
+
+      if (!p.el._spinning){
+        p.el.style.animation = `coinFlip ${p.spinMs|0}ms linear infinite`; // ✅ quoted
+        p.el._spinning = true;
+        p.el.style.transform = 'translate3d(0,0,0)';
+      }
+
+      if (p.homing && p.age >= p.seekDelay){
+        const dx = p.target.x - p.x, dy = p.target.y - p.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        p.vx += (dx/dist) * 1200 * dt;
+        p.vy += ((dy/dist) * 1200 - p.g*0.25) * dt;
+        const s = Math.hypot(p.vx, p.vy), maxV = 900;
+        if (s > maxV){ p.vx = p.vx/s*maxV; p.vy = p.vy/s*maxV; }
+      } else {
+        p.vy += p.g * dt;
+        p.vx *= (1 - 0.4*dt);
+      }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+     
+      p.el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
+
+      const t = p.age / p.life;
+      if (t >= p.fadeAt){
+        p.el.style.opacity = String(1 - (t - p.fadeAt) / (1 - p.fadeAt));
+      }
+
+      if (p.homing && t > 0.35){
+        const dx = p.x - endX, dy = p.y - endY;
+        if (dx*dx + dy*dy < 18*18){
+          makeSpark(endX, endY);
+          quickMoneyPop();
+          p.el.remove(); p.el = null; alive--;
+        }
+      }
+    }
+    if (alive > 0) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  // tiny “+cash” feel without touching your economy code
+  function quickMoneyPop(){
+    const money = toEl;
+    if (!money || money._popping) return;
+    money._popping = true;
+    const orig = money.style.transform;
+    money.style.transition = 'transform .12s ease, filter .12s ease';
+    money.style.transform = 'scale(1.08)';
+    money.style.filter = 'brightness(1.15)';
+    setTimeout(() => {
+      money.style.transform = orig || 'none';
+      money.style.filter = 'none';
+      money._popping = false;
+    }, 140);
+  }
+
+  function makeSpark(x, y){
+    const s = document.createElement('div');
+    s.className = 'fx-spark';
+    s.style.left = x + 'px'; s.style.top = y + 'px';
+    parent.appendChild(s);
+
+    // add a couple mini dots shooting out
+    for (let i=0;i<3;i++){
+      const d = document.createElement('div');
+      d.className = 'fx-spark';
+      d.style.width = d.style.height = (3 + Math.random()*3)+'px';
+      d.style.animationDuration = (280 + Math.random()*180)+'ms';
+      d.style.left = x + 'px'; d.style.top = y + 'px';
+      parent.appendChild(d);
+      const ang = Math.random()*Math.PI*2, dist = 10 + Math.random()*18;
+      const tx = x + Math.cos(ang)*dist;
+      const ty = y + Math.sin(ang)*dist;
+      d.animate([
+        { transform:`translate(-50%,-50%) scale(.6)`, opacity:1 },
+        { transform:`translate(${tx - x - 50}%, ${ty - y - 50}%) scale(1.4)`, opacity:0 }
+      ], { duration: 320 + Math.random()*180, easing:'ease-out', fill:'forwards' })
+      .finished.finally(()=> d.remove());
+    }
+
+    setTimeout(()=> s.remove(), 430);
+  }
+}
+
+// --- Minimal Dev Panel ---
+document.addEventListener('DOMContentLoaded', () => {
+  const panel = document.createElement('div');
+  panel.id = 'devPanel';
+  panel.style.cssText = `
+    position:fixed; right:14px; bottom:14px; z-index:99999;
+    background:rgba(0,0,0,.6); backdrop-filter:blur(6px);
+    border:1px solid rgba(255,255,255,.2); border-radius:10px;
+    padding:10px; font:13px/1.2 system-ui; color:#fff;
+  `;
+  panel.innerHTML = `
+    <div style="font-weight:800; margin-bottom:8px">Dev: Combo Tuning</div>
+    <div style="display:grid; gap:6px; min-width:220px">
+      <label style="display:flex; justify-content:space-between; gap:8px; align-items:center">
+        <span>Luck / Catch</span>
+        <input id="devLuck" type="number" step="1" min="0" style="width:90px; border-radius:6px; padding:4px"
+               value="\${window.dev.comboLuckPerCatch}">
+      </label>
+      <label style="display:flex; justify-content:space-between; gap:8px; align-items:center">
+        <span>Max Boost</span>
+        <input id="devMax" type="number" step="10" min="0" style="width:90px; border-radius:6px; padding:4px"
+               value="\${window.dev.comboMaxBoost}">
+      </label>
+
+      <div style="display:flex; gap:6px; flex-wrap:wrap">
+        <button id="devApply" class="btn" style="padding:6px 10px;">Apply</button>
+        <button id="devBumpLuck" class="btn secondary" style="padding:6px 10px;">+1 Luck</button>
+        <button id="devBumpMax" class="btn secondary" style="padding:6px 10px;">+10 Max</button>
+        <button id="devResetCombo" class="btn danger" style="padding:6px 10px;">Reset Combo</button>
+      </div>
+
+      <!-- 👇 NEW: free prestige button -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap">
+        <button id="devPrestigeFree" class="btn danger" style="padding:6px 10px;">Prestige +1 (free)</button>
+      </div>
+
+      <div class="help">Toggle with <span class="kbd">F10</span></div>
+    </div>
+  `;
+  document.body.appendChild(panel);
+
+  const devLuck = panel.querySelector('#devLuck');
+  const devMax  = panel.querySelector('#devMax');
+
+  function apply(){
+    window.dev.comboLuckPerCatch = Math.max(0, Number(devLuck.value)|0);
+    window.dev.comboMaxBoost     = Math.max(0, Number(devMax.value)|0);
+    saveDev();
+    if (typeof updateComboHUD === 'function') updateComboHUD();
+    if (typeof updateComboUI  === 'function') updateComboUI();
+  }
+
+  panel.querySelector('#devApply').onclick     = apply;
+  panel.querySelector('#devBumpLuck').onclick  = () => { devLuck.value = (Number(devLuck.value)|0) + 1;  apply(); };
+  panel.querySelector('#devBumpMax').onclick   = () => { devMax.value  = (Number(devMax.value)|0)  + 10; apply(); };
+  panel.querySelector('#devResetCombo').onclick = () => {
+    window.combo = window.combo || { count:0, best:0, boost:0 };
+    window.combo.count = 0; window.combo.boost = 0;
+    if (typeof updateComboHUD === 'function') updateComboHUD();
+    if (typeof updateComboUI  === 'function') updateComboUI();
+  };
+
+  // 👉 NEW: handler for free prestige (no reset)
+  panel.querySelector('#devPrestigeFree').onclick = () => {
+    const s = (window.state ||= {});
+    s.prestigeLevel = (s.prestigeLevel || 0) + 1;
+
+    if (typeof updatePrestigeUI === 'function') updatePrestigeUI();
+    if (typeof renderStats === 'function') renderStats();
+    if (typeof fullRender === 'function') fullRender();
+    if (typeof logMsg === 'function') logMsg(`DEV: Free Prestige +1 (now +${s.prestigeLevel}).`);
+
+    try { if (typeof save === 'function') save(); } catch(e){}
+  };
+
+  // F10 toggles panel
+  let shown = true;
+  function toggle(){ shown = !shown; panel.style.display = shown ? 'block' : 'none'; }
+  window.addEventListener('keydown', (e) => { if (e.key === 'F10'){ e.preventDefault(); toggle(); }});
+});
+
+//Prestige System
+
+function canPrestige(){
+  return (window.fishing.level >= 25); // example gate
+}
+
+// Helper to read/write Unlimiscales
+function getUnlimiscales(){ return (window.state?.unlimiscales|0) || 0; }
+function addUnlimiscales(n){
+  if (!window.state) window.state = {};
+  window.state.unlimiscales = (window.state.unlimiscales|0) + (n|0);
+}
+
+
+function doPrestige(){
+  if (!canPrestige()) return;
+
+  addUnlimiscales(1);
+  state.prestigeLevel = (state.prestigeLevel|0) + 1;
+
+  state.money = 25;
+  state.inventory = [];
+  state.upgrades = { bait:0, rod:0, boat:0, auto:0, luck:0 };
+  state.location = "pond";
+
+  window.fishing.level = 1;
+  window.fishing.xp = 0;
+  window.fishing.next = xpNeededForNext(1);
+  saveFishingProgress();
+
+  state._prestigeNotified = false; // ← add
+  updatePrestigeButton();          // ← add
+
+
+
+    updateBestComboUI();
+    updateFishingLevelUI();
+save();              // persist changes
+fullRender?.();      // redraw everything
+renderStats?.(); 
+
+// 🏆 clear trophies on prestige using the shared helper
+if (typeof window.resetTrophies === 'function') {
+  window.resetTrophies();
+}
+
+    
+   
+  updatePrestigeUI();
+  logMsg(`Prestiged to +${state.prestigeLevel}! You earned +1 Unlimiscale (now ${getUnlimiscales()}).`);
+}
+
+
+function updatePrestigeUI(){
+  const el = document.getElementById('statPrestigeVal');
+  if (!el) return;
+  const lvl = (window.state && typeof window.state.prestigeLevel === 'number')
+    ? window.state.prestigeLevel
+    : 0;
+  el.textContent = '+' + lvl;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.state) updatePrestigeUI(); // only if already initialized
+});
+
+
+
+function updateUnlimiscalesUI(){
+  const el = document.getElementById('statUnlimiscalesVal');
+  if (el) el.textContent = String(getUnlimiscales());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateUnlimiscalesUI();
+});
+
+// keep it fresh after prestige/saves
+(function hookCurrencyUI(){
+  const _save = typeof save === 'function' ? save : null;
+  if (_save){
+    window.save = function(){
+      _save.apply(this, arguments);
+      updateUnlimiscalesUI?.();
+    };
+  }
+})();
+
+
+
+// ===== Fishing Level System =====
+
+const FISHING_XP = {
+  baseNext: 120,
+  growth: 1.32,
+  xpPerDollar: 1.2,
+  comboBonusPct: 0.02,
+
+  // new:
+  tierBonusPctByTier: {           // additive to the multiplier
+    trash: 0, common: 0, uncommon: 0.05,
+    rare: 0.12, epic: 0.20, legendary: 0.30,
+    treasure: 0.35, artifact: 0.45, shadow: 0.60
+  },
+  starBonusPctPerStar: 0.08,      // +8% per ★
+  nameTitleBonusPct: 0.10,        // +10% if named; +10% if titled (stacks)
+  firstCatchFlat: 20,             // flat XP for first of species
+  recordFlat: 10                  // flat XP for new length/weight records
+};
+
+window.fishing = JSON.parse(localStorage.getItem('fishingProgress') || 'null') || {
+  level: 1,
+  xp: 0,               // current XP towards next level
+  next: FISHING_XP.baseNext
+};
+
+function saveFishingProgress(){
+  localStorage.setItem('fishingProgress', JSON.stringify(window.fishing));
+}
+
+function xpNeededForNext(level){
+  // XP needed to go from `level` -> `level+1`
+  return Math.round(FISHING_XP.baseNext * Math.pow(FISHING_XP.growth, Math.max(0, level - 1)));
+}
+// ===== Prestige System =====
+const PRESTIGE = {
+  chanceBase: 1.0,          // for testing: 100% roll
+  chancePerLevel: 0.05,
+  chanceCap: 1.0,
+  valueMultPerPlus: 1.25,
+  xpBonusPerPlus: 0.04
+};
+
+function prestigeRollChance(level){
+  const p = PRESTIGE.chanceBase + PRESTIGE.chancePerLevel * Math.max(0, level-1);
+  return Math.min(PRESTIGE.chanceCap, p);
+}
+
+// ✅ attach to window so it's visible everywhere & in console
+window.applyPrestigeWrapper = function applyPrestigeWrapper(fishObj){
+  const lvl = (window.state?.prestigeLevel|0);
+  if (fishObj?.tier !== 'shadow' || lvl <= 0) return fishObj;
+
+  if (Math.random() > prestigeRollChance(lvl)) return fishObj;
+
+  const k = 1 + ((Math.random()*lvl)|0);
+  const vMult = Math.pow(PRESTIGE.valueMultPerPlus, k);
+
+  const boosted = { ...fishObj };
+  boosted.value = Math.round(boosted.value * vMult * 10) / 10;
+
+  boosted._prestige = k;
+  boosted.tierDisplay = 'prestige';      // styling hook; underlying tier stays 'shadow'
+  boosted._prestigeXpBonus = PRESTIGE.xpBonusPerPlus * k;
+
+  console.log('[Prestige] applied +%d to %s ($%s → $%s)', 
+    k, boosted.name, (fishObj.value).toFixed(2), boosted.value.toFixed(2));
+
+  return boosted;
+};
+
+
+function ensureFishingLevelUI(){
+  let stats = document.getElementById('stats');     // your existing stats panel container
+  if (!stats) return;
+
+  let row = document.getElementById('fishLevelRow');
+  if (!row){
+    row = document.createElement('div');
+    row.id = 'fishLevelRow';
+    row.className = 'stat-row fish-level-row';
+    row.innerHTML = `
+      <div class="fish-level-left">
+        <span class="fish-level-label">Fishing Lv.</span>
+        <span id="fishLevelVal" class="fish-level-val">1</span>
+      </div>
+      <div class="fish-level-right">
+        <div class="xpbar" title="Fishing XP">
+          <div class="xpbar-fill" id="fishXPFill"></div>
+          <div class="xpbar-text" id="fishXPText">0 / 120</div>
+        </div>
+      </div>
+    `;
+    // put this FIRST in the stats panel
+    stats.prepend(row);
+  }
+}
+
+function updateFishingLevelUI(){
+  ensureFishingLevelUI();
+  const f = window.fishing;
+  const lvlEl = document.getElementById('fishLevelVal');
+  const fill = document.getElementById('fishXPFill');
+  const txt  = document.getElementById('fishXPText');
+
+  if (lvlEl) lvlEl.textContent = f.level;
+  if (fill){
+    const pct = Math.max(0, Math.min(100, (f.xp / f.next) * 100));
+    fill.style.width = pct.toFixed(1) + '%';
+  }
+  if (txt) txt.textContent = `${f.xp} / ${f.next}`;
+}
+
+function levelUpFX(newLevel){
+  // gentle pulse on the bar
+  const row = document.getElementById('fishLevelRow');
+  if (row){
+    row.classList.remove('pulse'); void row.offsetWidth; row.classList.add('pulse');
+  }
+  
+  // toast in the center
+  const div = document.createElement('div');
+  div.className = 'levelup-toast';
+  div.textContent = `Level Up! Fishing Lv. ${newLevel}`;
+  (document.getElementById('fx') || document.body).appendChild(div);
+  setTimeout(()=> div.remove(), 1800);
+}
+
+function bonusMultFromCatch(caught){
+  let mult = 1;
+
+  // combo
+  const comboCount = (window.combo?.count || 0);
+  mult += comboCount * FISHING_XP.comboBonusPct;
+
+  // tier
+  mult += FISHING_XP.tierBonusPctByTier[caught.tier] || 0;
+
+  // stars
+  const stars = (caught.stars ?? caught._stars ?? 0) | 0;
+  mult += stars * FISHING_XP.starBonusPctPerStar;
+
+  // named / titled
+  if (caught._mythicMeta?.gotPrefix) mult += FISHING_XP.nameTitleBonusPct;
+  if (caught._mythicMeta?.gotTitle)  mult += FISHING_XP.nameTitleBonusPct;
+updatePrestigeButton?.();
+  return mult;
+}
+
+function awardFishingXPFromCatch(caught, { wasFirst=false, wasBestWt=false, wasBestLen=false } = {}){
+  const base = caught.value * FISHING_XP.xpPerDollar;
+  const mult = bonusMultFromCatch(caught);
+
+  let gained = Math.max(1, Math.round(base * mult));
+
+  // flats that feel good and don’t snowball
+  if (wasFirst)  gained += FISHING_XP.firstCatchFlat;
+  if (wasBestWt) gained += FISHING_XP.recordFlat;
+  if (wasBestLen)gained += FISHING_XP.recordFlat;
+
+  addFishingXP(gained);
+  checkPrestigeUnlock();  // after level changes AND during initial UI build
+
+  // (optional) tiny breakdown toast
+  // logMsg(`+${gained} XP • base ${Math.round(base)} ×${mult.toFixed(2)}${wasFirst?' +first':''}${(wasBestWt||wasBestLen)?' +record':''}`);
+}
+
+
+//combo break apart
+function fxComboBreak() {
+  const hud = document.getElementById('comboHUD');
+  if (!hud) return;
+
+  // Where to spawn shards
+  const play = document.querySelector('.play') || document.body;
+  const playRect = play.getBoundingClientRect();
+  const hudRect  = hud.getBoundingClientRect();
+
+  // Make an overlay layer that we can clean up after
+  const layer = document.createElement('div');
+  Object.assign(layer.style, {
+    position: 'absolute',
+    left: '0', top: '0', width: '100%', height: '100%',
+    pointerEvents: 'none', overflow: 'visible'
+  });
+  play.appendChild(layer);
+
+  // Use whatever text the HUD is showing (ex: "x12 (+34)")
+  const txt = (hud.textContent || '').trim();
+  if (!txt) { layer.remove(); return; }
+
+  // Spawn one shard per visible character (skip spaces)
+  const cx = (hudRect.left - playRect.left) + hudRect.width / 2;
+  const cy = (hudRect.top  - playRect.top ) + hudRect.height / 2;
+
+  const shards = [];
+  for (let i = 0; i < txt.length; i++) {
+    const ch = txt[i];
+    if (ch === ' ') continue;
+
+    const el = document.createElement('div');
+    el.className = 'combo-shard';
+    el.textContent = ch;
+    layer.appendChild(el);
+
+    shards.push({
+      el,
+      x: cx, y: cy,
+      vx: (Math.random()*2 - 1) * 260,           // px/s
+      vy: (-Math.random()*1.2 - 0.2) * 360,      // px/s (initial upward burst)
+      rot: Math.random() * 360,
+      vr: (Math.random()*2 - 1) * 600,           // deg/s
+      life: 700 + Math.random() * 300,           // ms
+      age: 0
+    });
+  }
+
+  // Quick pop on the HUD itself
+  hud.classList.add('combo-break-pop');
+  hud.addEventListener('animationend', () => hud.classList.remove('combo-break-pop'), { once: true });
+
+  // Physics loop
+  const g = 1200; // gravity px/s^2
+  const start = performance.now();
+  let prev = start;
+
+  function step(now) {
+    const dt = Math.min(40, now - prev) / 1000;
+    prev = now;
+
+    let active = false;
+    for (const p of shards) {
+      p.age = now - start;
+      if (p.age >= p.life) {
+        p.el.remove();
+        continue;
+      }
+      active = true;
+
+      // integrate
+      p.vy += g * dt;
+      p.x  += p.vx * dt;
+      p.y  += p.vy * dt;
+      p.rot += p.vr * dt;
+
+      const t = p.age / p.life; // 0..1
+      p.el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.rot}deg) scale(${1 - 0.35*t})`;
+      p.el.style.opacity = String(1 - t);
+    }
+
+    if (active) requestAnimationFrame(step);
+    else layer.remove();
+  }
+  requestAnimationFrame(step);
+}
+
+
+
+
+function ensureCombo(){
+  if (!window.combo) window.combo = { count: 0, best: 0, boost: 0 };
+  if (typeof window.combo.best !== 'number') window.combo.best = 0;
+}
+ensureCombo(); 
+
+// Update UI helper
+function updateBestComboUI(){
+  const el = document.getElementById('statBestComboVal');
+  if (!el) return;
+  el.textContent = 'x' + (window.combo?.best || 0);
+}
+
+function ensureBestComboRow(){
+  const panel = document.querySelector('#stats, .stats, .side-panel');
+  if (!panel || document.getElementById('statBestCombo')) return;
+  const row = document.createElement('div');
+  row.id = 'statBestCombo';
+  row.className = 'stat-row';
+  row.innerHTML = `<span>Best Combo</span><strong id="statBestComboVal">x0</strong>`;
+  panel.appendChild(row);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  ensureCombo();
+  ensureBestComboRow();
+
+  // Load saved record once at startup
+  const saved = Number(localStorage.getItem('bestCombo') || 0);
+  window.combo.best = Math.max(window.combo.best || 0, saved);
+
+  updateBestComboUI();
+});
+
+
+// --- Dev settings (persisted) ---
+const DEV_KEY = 'devSettings';
+window.dev = JSON.parse(localStorage.getItem(DEV_KEY) || 'null') || {
+  comboLuckPerCatch: 1,
+  comboMaxBoost: 100
+};
+function saveDev(){ localStorage.setItem(DEV_KEY, JSON.stringify(window.dev)); }
+
+
+// --- Live COMBO values (read from dev settings) ---
+const COMBO = {};
+Object.defineProperties(COMBO, {
+  LUCK_PER_CATCH: { get(){ return Number(window.dev.comboLuckPerCatch) || 0; } },
+  MAX_BOOST:      { get(){ return Number(window.dev.comboMaxBoost)      || 0; } }
+});
+
+
+function onCatchSuccess(){
+  ensureCombo();
+  const c = window.combo;
+
+  c.count++;
+  const prevBest = c.best;
+  c.best  = Math.max(c.best, c.count);
+  c.boost = Math.min(COMBO.MAX_BOOST, c.count * COMBO.LUCK_PER_CATCH);
+
+  updateComboFX();
+  updateComboUI();
+
+  if (typeof updateComboHUD === 'function') updateComboHUD();
+
+  if (c.best !== prevBest){
+    localStorage.setItem('bestCombo', String(c.best));
+    updateBestComboUI();
+    const row = document.getElementById('statBestCombo');
+    if (row){ row.classList.add('glow'); setTimeout(()=> row.classList.remove('glow'), 600); }
+  }
+}
+
+function onCatchMiss(){
+if (typeof fxComboBreak === 'function') fxComboBreak();
+  ensureCombo();
+  const c = window.combo;
+  c.count = 0;
+  c.boost = 0;
+
+  updateComboFX();
+  updateComboUI();
+  if (typeof updateComboHUD === 'function') updateComboHUD();
+  updateBestComboUI();
+}
+function updateComboUI(){
+  const c = window.combo || (window.combo = { count:0, best:0, boost:0 });
+
+  const v = document.getElementById('comboVal');
+  const l = document.getElementById('comboLuck');
+  const row = document.getElementById('comboStat');
+
+  if (v) v.textContent = 'x' + c.count;
+  if (l) l.textContent = `(+${c.boost || 0})`;
+  if (row){ row.classList.remove('glow'); void row.offsetWidth; row.classList.add('glow'); }
+
+  // always keep the Best Combo badge in sync
+  updateBestComboUI();
+
+  if (typeof updateComboHUD === 'function') updateComboHUD();
+}
+
+
+
+function updateComboFX(){
+  const bar = document.getElementById('bar');
+  const marker = document.getElementById('marker');
+  if(!bar) return;
+
+  const c = Math.max(0, window.combo?.count ?? 0);
+
+// intensity up to ~50x (glow strength/pulse speed)
+const t = intensityFromCombo(c);              // 0..1
+const speedMs = Math.round(1000 - 550 * t);   // 1000 → 450
+
+// color hue: slow shift green→purple, only near purple close to 100x
+const hue = hueFromCombo(c);
+
+if (c > 0){
+  bar.classList.add('onfire');
+  bar.style.setProperty('--fire', t.toFixed(3));
+  bar.style.setProperty('--fire-speed', `${speedMs}ms`);
+  bar.style.setProperty('--fire-hue', `${hue}deg`);
+  if (marker){
+    marker.classList.add('onfire');
+    marker.style.setProperty('--fire', t.toFixed(3));
+  }
+} else {
+  bar.classList.remove('onfire');
+  bar.style.removeProperty('--fire');
+  bar.style.removeProperty('--fire-speed');
+  bar.style.removeProperty('--fire-hue');
+  if (marker){
+    marker.classList.remove('onfire');
+    marker.style.removeProperty('--fire');
+  }
+}
+}
+
+// Map combo/weight -> splash strength (0.2 .. 1.0)
+function splashStrength(comboCount, fishLbs) {
+  const c = Math.min(1, (comboCount||0) / 5);      // hits 1.0 at ~x15
+  const w = Math.min(1, (fishLbs||0) / 30);         // 30 lbs ~= full weight factor
+  return Math.max(0.2, c*0.7 + w*0.3);
+}
+// Scale fish $ value into 0..1, where ~10k value maxes out
+function valueFactorUSD(valueUSD){
+  const v = Math.max(1, valueUSD|0);     // avoid log10(0)
+  return Math.min(1, Math.log10(v) / 4); // log10(10k)=4 → 1.0
+}
+// Get numeric index of a tier string from your TIERS array
+function tierIndexOf(tier){
+  if (!window.TIERS) return 0;
+  const i = window.TIERS.indexOf(tier);
+  return (i >= 0) ? i : 0;
+}
+
+
+function fxBarSplash({ comboCount=0, fishLbs=0, tier=null, valueUSD=0 } = {}){
+  const bar = document.getElementById('bar');
+  if (!bar) return;
+
+  // Find marker center relative to bar
+  const barRect = bar.getBoundingClientRect();
+  const marker = document.getElementById('marker');
+  let ox = barRect.width  / 2;
+  let oy = barRect.height / 2;
+
+  if (marker) {
+    const m = marker.getBoundingClientRect();
+    ox = (m.left + m.width  / 2) - barRect.left;   // px inside bar
+    oy = (m.top  + m.height / 2) - barRect.top;
+  }
+
+  // Profile (use your existing strength/value logic or my earlier helpers)
+  const strength = splashStrength(comboCount, fishLbs);
+  const val = valueFactorUSD(valueUSD);
+
+  // Your previous derived knobs (example values shown; keep yours if different)
+  const multCount = 1 + val * 1.8;
+  const multDist  = 1 + val * 0.9;
+  const multSize  = 1 + val * 0.6;
+
+  // Create effect layer once
+  const layer = document.createElement('div');
+  layer.className = 'bar-splash';
+  // set origin in px
+  layer.style.setProperty('--ox', ox.toFixed(1) + 'px');
+  layer.style.setProperty('--oy', oy.toFixed(1) + 'px');
+  bar.appendChild(layer);
+
+  // Ring
+  const ring = document.createElement('div');
+  ring.className = 'splash-ring';
+  ring.style.setProperty('--ringAlpha', (0.25 + 0.55*strength * (1 + val*0.4)).toFixed(2));
+  ring.style.setProperty('--ringScale', (1.15 + 0.75*(0.25 + 0.45*(fishLbs/50) + 0.25*(tierIndexOf(tier)/(TIERS.length-1||1)) + 0.2*(comboCount/20))).toFixed(2));
+  ring.style.setProperty('--ringDur',   (520 + Math.round(200*strength)).toString() + 'ms');
+  layer.appendChild(ring);
+
+  // Sheen
+  const sheen = document.createElement('div');
+  sheen.className = 'sheen';
+  sheen.style.setProperty('--sheenAlpha', (0.12 + 0.25*strength*(1+val*0.3)).toFixed(2));
+  layer.appendChild(sheen);
+
+  // Drops (same math as you had, just multiplied and using the new origin)
+  const drops = Math.round((10 + strength*15) * multCount);
+  for (let i=0;i<drops;i++){
+    const d = document.createElement('div');
+    d.className = 'drop';
+
+    const baseDeg = -90, spread = 70;
+    const deg = baseDeg + (Math.random()*2 - 1) * spread;
+    const rad = deg * Math.PI / 180;
+
+    const dist = ((30 + Math.random()*30) * (0.8 + strength*1.2)) * multDist;
+    const dx = Math.cos(rad) * dist;
+    const dy = Math.sin(rad) * dist;
+
+    d.style.setProperty('--dx', dx.toFixed(1)+'px');
+    d.style.setProperty('--dy', dy.toFixed(1)+'px');
+
+    const size = (6 + Math.random()*5 + strength*3) * multSize;
+    d.style.width = d.style.height = size.toFixed(1) + 'px';
+
+    d.style.animationDelay = (Math.random()*60) + 'ms';
+    layer.appendChild(d);
+  }
+
+  setTimeout(()=> layer.remove(), 800);
+}
+
+function ensureComboHUD(){
+  let el = document.getElementById('comboHUD');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'comboHUD';
+    el.className = 'combo-hud';
+    document.querySelector('.play').appendChild(el);
+    
+  }
+  return el;
+}
+
+// Call this whenever the combo changes (we’ll hook it inside updateComboUI)
+function updateComboHUD(){
+  const el = ensureComboHUD();
+  const c = Math.max(0, window.combo?.count ?? 0);
+
+  if (c <= 0){
+    el.classList.remove('show','pulse');
+    el.textContent = '';
+    return;
+  }
+
+  // Map x1..x12+ to 0..1 intensity
+  const t = Math.max(0, Math.min(1, (c - 1) / (12 - 1)));
+
+  // readable label
+  el.textContent = `COMBO x${c}`;
+
+  // Stronger scale/jitter as streak grows
+  const scale  = 1 + 0.30 * t;                 // up to +30%
+  const jitter = (1 + 6 * t).toFixed(1) + 'px';// 1px → 7px
+  const speedMs = Math.round(800 - 500 * t);   // 800ms → 500ms
+
+  el.style.setProperty('--hud-scale', String(scale));
+  el.style.setProperty('--hud-jitter', jitter);
+  el.style.setProperty('--hud-speed', `${speedMs}ms`);
+
+
+
+  const hue = hueFromCombo(c);
+  el.style.setProperty('--hud-hue', `${hue}deg`);
+  el.classList.add('show','pulse');
+}
+ensureComboHUD(); updateComboHUD();
+ensureFishingLevelUI();
+updateFishingLevelUI();
+
+
+// ===== Star system config =====
+const STAR_CONFIG = {
+  // Chance a NAMED fish is awarded any stars at all:
+  awardChance: 0.40, // tune 0.0–1.0
+
+  // Relative weights for 1..5 stars (sum doesn't need to be 1)
+  weights: [0.58, 0.25, 0.11, 0.045, 0.015], // 1★ most common, 5★ very rare
+
+  // Stat multipliers per star (compounding)
+  lenPerStar: 0.52,  // +12% length per star
+  wtPerStar:  0.58,  // +18% weight per star
+  valPerStar: 1.65,  // +45% value per star (on top of sizeFactor effects)
+  // Optional little bonus for ultra-stars:
+  bonusValue4Plus: 3.25 // +25% more value if 4★ or 5★
+};
+
+function weightedIndex(weights){
+  let total = 0; for (const w of weights) total += w;
+  let r = Math.random() * total;
+  for (let i=0;i<weights.length;i++){ r -= weights[i]; if (r<=0) return i; }
+  return weights.length-1;
+}
+
+function isNamedFish(f){
+  const p = f._nameParts || {};
+  return Boolean(
+    f._mythicMeta?.gotPrefix ||
+    f._mythicMeta?.gotTitle  ||
+    p.prefix || p.title || p.epithet // keep it generous for your generator
+  );
+}
+
+function rollStarsIfAny(fish){
+  if (!isNamedFish(fish)) return 0;
+  if (Math.random() > STAR_CONFIG.awardChance) return 0; // no stars this time
+  return 1 + weightedIndex(STAR_CONFIG.weights);         // 1..5
+}
+
+function starScales(stars){
+  const s = Math.max(0, Math.min(5, stars|0));
+  const len = 1 + s * STAR_CONFIG.lenPerStar;
+  const wt  = 1 + s * STAR_CONFIG.wtPerStar;
+  let val   = 1 + s * STAR_CONFIG.valPerStar;
+  if (s >= 4) val += STAR_CONFIG.bonusValue4Plus;
+  return { len, wt, val };
+}
+
+
+
+
+
+//Name boosting
+function formatDisplayNameHTML(f){
+  const tierCls = window.tierClassName(f.tier);
+  const parts = f._nameParts || { species: f.displayName || f.name };
+  const badges = [];
+
+  // stars (existing)
+  const stars = Math.max(0, Math.min(5, (f.stars ?? f._stars ?? 0)|0));
+  if (stars > 0){
+    badges.push(`<span class="fish-badge star-badge" title="${stars}-Star">${'★'.repeat(stars)}</span>`);
+  }
+
+  // NEW: prestige badge
+  const p = f._prestige|0;
+  if (p > 0){
+    // hue varies with p; wraparound keeps every level distinct-ish
+    const hue = (p * 28) % 360;
+    badges.push(
+      `<span class="fish-badge prestige-badge" style="--pHue:${hue}deg" title="Prestige +${p}">+${p}</span>`
+    );
+  }
+
+  const prefixHTML     = parts.prefix ? `<span class="fish-prefix">${parts.prefix}</span> ` : '';
+  const epithetHTML    = parts.epithet ? ` <span class="fish-epithet">${parts.epithet}</span>` : '';
+  const speciesHTML    = `<b class="fish-type-accent ${p>0?'prestige-name':''}" style="${p>0?`--pHue:${((p*28)%360)}deg`:''}">${parts.species}</b>`;
+  const provenanceHTML = parts.provenance ? ` <span class="fish-provenance">${parts.provenance}</span>` : '';
+  const badgesHTML     = badges.length ? ` <span class="fish-badges">${badges.join('')}</span>` : '';
+
+  // If prestige, put the “shadow” frame AND the prestige flair
+  const outerCls = p>0 ? `t-shadow prestige-wrap` : tierCls;
+
+  return `<span class="${outerCls}">${prefixHTML}${speciesHTML}${epithetHTML}${provenanceHTML}${badgesHTML}</span>`;
+}
+
+
+
+
+
+//Naming code
+
+// ---- deterministic RNG helpers ----
+function xmur3(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19;} return ()=>{ h=Math.imul(h^h>>>16,2246822507); h=Math.imul(h^h>>>13,3266489909); return (h^h>>>16)>>>0; } }
+function mulberry32(a){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
+const pick = (rng, arr) => arr[(rng()*arr.length)|0];
+const chance = (rng, p) => rng() < p;
+
+// ---- tiny banks (expand freely) ----
+const CORE_SPECIES = [
+  "Glimmerfin","Duskscale","Mudwhisker","Sunshard","Lantern","Ghost Mullet","Amber Carp","Stonebelly","Glass Perch","Rift Trout",
+  "Moonbelly","Ironjaw","Siltstalker","Coralback","Star","Shadowy","Brinefang","Ashgill","Crystal Darter","Fangfin",
+"Kelpshadow","Foamrunner","Tideglider","Reefgazer","Pearlbelly","Stormgill","Sparkfin","Opalwhisker","Gloomjaw","Misttail",
+  "Floodscale","Waveflasher","Driftback","Seaglint","Brineshard","Siltfin","Rimescale","Frostjaw","Nightglow","Abyssdarter",
+  "Coralwhisk","Shellback","Saltlance","Brackfang","Reefthorn","Tideglass","Deepgleam","Duskbelly","Gulfwhisker","Sablescale",
+  "Cobaltfin","Sunshiver","Gleamjaw","Riftbelly","Dawnrunner","Bramblefin","Stonegazer","Mudlancer","Boulderback","Moonshard",
+  "Shallowskipper","Ripplegill","Violet Darter","Azureback","Cinderscale","Emberfin","Smoketail","Tempestjaw","Horizonfin","Umberbelly",
+  "Shadowback","Glassgazer","Starflare","Luminfin","Ghostscale","Seastone","Pebbleback","Sandwhisker","Reedtail","Lilypad Lurker",
+  "Kelpneedle","Tanglefin","Glowtide","Surfskipper","Marrowfin","Fogjaw","Whitesand Darter","Shalejaw","Opalfin","Gildscale",
+  "Murkwhisker","Netsnagger","Guttergill","Lagoon Darter","Brineglow","Shelldarter","Tideclaw","Veilfin","Hollowjaw","Driftshade","Kelpdrifter","Crystalbelly","Shadowdarter","Gloomfin","Riftfang","Stormbelly","Ashmouth",
+"Whisperfin","Duskwraith","Echofin","Brinejaw","Fogbelly","Cindertail","Saltshade","Tidefang","Moonveil","Siltcrawler",
+"Reefshard","Tanglejaw","Mistgazer","Starveil","Voidbelly","Glowjaw","Amberveil","Bonefin","Hollowgill","Riftglow",
+"Shattertail","Floodbelly","Driftjaw","Gravefin","Sablefang","Ironbelly","Stormfang","Opalbelly","Nightveil","Foamgazer"
+
+];
+
+const VARIANTS = [
+  "Giant","Dawn-lit","Storm-touched","Abyssal","Iridescent","Chromatic","Brackish","Glacial","Pale",
+  "Twilight","Bloodscale","Mistbound","Tideborn","Spectral","Volcanic","Sunken","Hollow-eyed","Frostfin","Shimmering",
+"Luminescent","Bioluminescent","Moonlit","Starlit","Sun-dappled","Opaline","Prismatic","Pearlescent","Auric","Verdigris",
+  "Cobalt","Obsidian","Gilded","Silvered","Bronzed","Albino","Melanistic","Speckled","Spotted","Striped",
+  "Marbled","Ringed","Glittering","Glass-sheen","Translucent","Ghosted","Ethereal","Phantom","Wraithlike","Shadowed",
+  "Reefborn","Kelp-wreathed","Coral-touched","Salt-scoured","Brinewashed","Barnacled","Salt-bitten","Weathered","Scarred","Ancient",
+  "Deep-sea","Hadal","Abyssward","Tempest-tossed","Stormforged","Gale-kissed","Windscarred","Tide-swept","Wake-chaser","Crosscurrent",
+  "Frosted","Rimeswept","Icebound","Dune-sanded","Silted","Mud-streaked","Foam-crowned","Spray-kissed","Sunbleached","Night-drifting","Star-forged","Moon-veined","Glow-crusted","Ash-veiled","Runed","Eclipsed","Shadowveined","Tide-etched","Aether-bound","Fog-wreathed",
+"Rune-marked","Crystal-scaled","Hollow-spined","Star-burnt","Ash-dappled","Brine-scored","Echo-touched","Dew-glittered","Soul-bound","Whisper-lit",
+"Cloud-streaked","Iron-scaled","Copper-veined","Bronze-etched","Drift-tossed","Salt-kissed","Wraith-scaled","Mist-scarred","Frost-laced","Tide-marked"
+
+];
+
+const EPITHETS = [
+  "the Biter","the Strong One","the End of Reels","the Hook-Snapper","the Patient","the Netbreaker","the Wanderer","the Line Cutter","the Depth Singer",
+  "the Tide’s Bane","the Scale Collector","the Silent Hunter","the Wavebreaker","the Old One","the Pearl Thief","the Currentshaper","the Net Ghost","the Deep Terror","the Foam Rider",
+ "the Undertow","the Riptide","the Stormrunner","the Depth-Keeper","the Shell-Singer","the Reef Warden","the Tidecaller","the Star-Eater","the Gloom-Walker","the Wave-Turner",
+  "the Hook-Dodger","the Net Weaver","the Line Dancer","the Foam-Treader","the Current-Rider","the Driftbound","the Kelp-Clad","the Barnacle-Born","the Brine Scholar","the Pearl Minder",
+  "the Moon-Drunk","the Sun-Scorched","the Night-Drifter","the Dawn-Runner","the Dusk Harbinger","the Gale-Forged","the Storm-Bound","the Windscarred","the Rust-Eater","the Scale Scribe",
+  "the Shoal-Splitter","the Reef-Runner","the Wreck-Haunter","the Anchor-Breaker","the Oar Thief","the Sail-Tatter","the Depth-Whisperer","the Siren’s Debt","the Kraken’s Echo","the Leviathan’s Heir",
+  "the Lantern-Bearer","the Cold-Blood","the Frostbit","the Ice-Finned","the Ember-Eyed","the Star-Touched","the Void-Gazer","the Rift-Born","the Abyss-Kissed","the Crosscurrent",
+  "the Sand-Sleeper","the Mud Warden","the Silt-Seer","the Glass-Eater","the Coral-Crowned","the Shell-Cracker","the Bone Nibbler","the Iron-Jawed","the Salt-Witch","the Wave-Sage",
+  "the Tide-Keeper","the Depth Tyrant","the Quiet Fin","the Foam-Crowned","the Spray-Kissed","the Sunbleached","the Night-Kept","the Tide-Stalker","the Reef-Sentinel","the Shipbreaker",
+  "the Drift King","the Net-Cutter","the Hookbane","the Linebreaker","the Deep Listener","the Kelp-Wreathed","the Brine-Touched","the Wake-Chaser","the Tempest’s Child","the Horizon Seeker","the Line-Shredder","the Net-Forsaker","the Weightbreaker","the Silent Current","the Drift-Haunter","the Foam-Singer","the Abyss Walker","the Depth-Scribe","the Hook-Spurned","the Scale-Sunderer",
+"the Shadow-Fin","the Bone-Biter","the Maw-Warden","the Fathom-Dweller","the Chain-Gnawer","the Keel-Cracker","the Jetty-Haunt","the Storm-Herald","the Salt-Reaver","the Foam-Whisperer",
+"the Glow-Watcher","the Moon-Gnawed","the Sun-Turned","the Star-Singer","the Depth-Scoured","the Soul-Netter","the Echo-Bound","the Reef-Seeker","the Rime-Touched","the Night-Eater"
+];
+
+
+const PROVENANCE = [
+  "of Silent Reeds","of the Sapphire Trench","of Old Pilings","of the Fogbanks","from Oyster Flats","from Kelp Grave","of The Deep","of The Gulf","of the Shattered Reef","of the Shadows","from the Drowned Caves","of the Leviathan’s Wake","from the Whispering Shoals","from Blackwater Sound","of the Sunken Gardens","of the Coral Catacombs","from the Forgotten Atoll","from the Tempest Coast","of the Abyssal Maw","from Siren’s Hollow","of the Depths","of Magic",
+"from the Sargassum Drift","of the Maelstrom’s Eye","from Brackwater Inlet","of the Glassy Shoals","from the Starfall Tides","of the Moonlit Flats",
+  "from the Bonewhite Sands","of the Drowned Forest","from the Kelp Cathedral","of the Split Ridge","from the Lantern Keys","of the Coldwater Rifts",
+  "from the Black Current","of the Iron Shoals","from the Saltmarsh Veil","of the Singing Reefs","from the Wreckman’s Grave","of the Anchor Fields",
+  "from the Fathomless Pit","of the Twilit Sound","from the Whisper Current","of the Siren Reaches","from the Rimebound Fjords","of the Frozen Brine",
+  "from the Bleached Jetty","of the Copper Banks","from the Seaglass Strand","of the Tangle Reaches","from the Sapphire Gyre","of the Needle Reefs",
+  "from the Cinder Shoals","of the Ashen Shelf","from the Ember Tide","of the Stormglass Coast","from the Howling Headlands","of the Breaker’s Gate",
+  "from the Pearl Fields","of the Opal Sink","from the Brine Prism","of the Tideworn Piles","from the Widow’s Channel","of the Gallows Shoal",
+  "from the Old Chain Grounds","of the Lost Moorings","from the Fog-Scattered Banks","of the Sandbar Labyrinth","from the Silt Crossings","of the Murkway",
+  "from the Sea Witch’s Step","of the Needle Strait","from the Gloam Canals","of the Nightwater Reach","from the Tempest Eye","of the Cyclone Shelf",
+  "from the Violet Grotto","of the Starlit Estuary","from the Vents of Fire","of the Smokeless Chimneys","from the Blackstone Shelf","of the Hollow Wharf",
+  "from the Brightwater Terrace","of the Glass Spit","from the Nettled Piers","of the Driftwood Crown","from the Tanglebar","of the Windward Cut",
+  "from the Echoing Wharf","of the Whale’s Road","from the Seamark Ledge","of the Saltspire","from the Ragged Keys","of the Sailor’s Rest","from the Lantern Trench","of the Starless Sound","from the Broken Chain Shoals","of the Murkmire","from the Hollow Kelpfields","of the Splintered Jetty","from the Brineglass Flats","of the Sunken Vaults","from the Ashen Inlet","of the Stormtide Rise",
+"from the Gloam Shoals","of the Fathom Scar","from the Driftveil Banks","of the Netherfoam","from the Coral Graves","of the Iron Tide","from the Whisper Shoal","of the Moonshadow Shelf","from the Forgotten Jetty","of the Glimmer Shoals",
+"from the Twilight Brine","of the Abyssgate","from the Rotted Pier","of the Tideworn Grave","from the Sunken Ring","of the Reef’s Maw","from the Drowned Step","of the Leviathan’s Crown","from the Pearl Maw","of the Shadow Shoals"
+];
+
+
+const CLUSTERS = ["b","br","cr","dr","fl","gl","gr","kr","pl","pr","qu","sk","sl","sm","sn","sp","st","str","sw","tr","vr","zh"];
+const VOWELS   = ["a","e","i","o","u","ae","ai","ia","io","ou","ui"];
+const SUFFIX   = ["fin","gill","gazer","maw","belly","back","crest","jaw","whisk","thorn","scale","spine","tail","glow","glint","flare"];
+const LATIN    = ["","","","us","a","or","ix","ium"]; // biased toward empty
+
+function syllable(rng){
+  const c = pick(rng, CLUSTERS);
+  const v = pick(rng, VOWELS);
+  const end = chance(rng, 0.5) ? "" : (rng() < 0.5 ? pick(rng, "mnprst".split("")) : "");
+  return c + v + end;
+}
+function rareRoot(rng){
+  const parts = (rng() < 0.5) ? [syllable(rng), syllable(rng)] : [syllable(rng)];
+  let base = parts.join(""); base = base.charAt(0).toUpperCase() + base.slice(1);
+  if (chance(rng, 0.7)) { let suf = pick(rng, SUFFIX); base += " " + suf.charAt(0).toUpperCase() + suf.slice(1); }
+  if (chance(rng, 0.25)) base += pick(rng, LATIN);
+  return base;
+}
+function buildGeneratedPrefix(stats, rng){
+  const useRare = chance(rng, 0.7);
+  const core = useRare ? rareRoot(rng) : pick(rng, CORE_SPECIES);
+  const variant = chance(rng, 0.6) ? pick(rng, VARIANTS) : null;
+  const provenance = chance(rng, 0.45) ? pick(rng, PROVENANCE) : null;
+  return [variant, core, provenance].filter(Boolean).join(" ");
+}
+
+// ---- main: augment your pending fish (len cm, wt kg, value $) ----
+function augmentFishNamingAndBoosts(pendingFish, opts = {}){
+  const {
+    worldSeed = "FISH-1",
+    prefixChance = 0.20,              // chance to add a generated prefix (variant/species-like)
+    titleChance  = 0.05,              // chance to add an epithet (a.k.a. title)
+    provenanceChance = 0.40,          // chance to add a provenance/location AFTER species
+    prefixBoostRange = [0.10, 0.25],
+    titleBoostRange  = [0.15, 0.35],
+    lenScale = 0.40,
+    wtScale  = 0.60
+  } = opts;
+
+  // Never name/title trash tier
+  if (pendingFish.tier === 'trash') {
+    return { ...pendingFish, displayName: pendingFish.name, _mythicMeta: { gotPrefix:false, gotTitle:false, totalMult:1 } };
+  }
+
+  // Deterministic seed based on the catch
+  const seedStr = worldSeed + JSON.stringify([
+    pendingFish.name, pendingFish.tier,
+    Math.round(pendingFish.len||0), Math.round((pendingFish.wt||0)*100),
+    pendingFish.value
+  ]);
+  const rng = mulberry32(xmur3(seedStr)());
+
+  let totalMult = 1.0;
+  let gotPrefix = false, gotTitle = false;
+
+  // Build ordered pieces we’ll render as: [prefix] [epithet] species [provenance]
+  let prefix = null;
+  let epithet = null;
+  let provenance = null;
+  const species = pendingFish.name;
+
+  // Maybe prefix (generated species-like). Ensure it has NO provenance inside it.
+  if (chance(rng, prefixChance)) {
+    let built = buildGeneratedPrefix(pendingFish, rng);
+    // strip any trailing provenance if buildGeneratedPrefix ever adds one
+    built = built.replace(/\s+(of|from)\b.*$/i, '').trim();
+    if (built) {
+      prefix = built;
+      const pMult = prefixBoostRange[0] + (prefixBoostRange[1]-prefixBoostRange[0]) * rng();
+      totalMult *= (1 + pMult);
+      gotPrefix = true;
+    }
+  }
+
+  // Maybe epithet (title) — placed BEFORE species
+  const effectiveTitleChance = gotPrefix ? Math.min(1, titleChance * 1.5) : titleChance;
+  if (chance(rng, effectiveTitleChance)) {
+    epithet = pick(rng, EPITHETS);
+    const tMult = titleBoostRange[0] + (titleBoostRange[1]-titleBoostRange[0]) * rng();
+    totalMult *= (1 + tMult);
+    gotTitle = true;
+  }
+
+  // Maybe provenance — placed AFTER species
+  if (chance(rng, provenanceChance)) {
+    provenance = pick(rng, PROVENANCE);
+  }
+
+  // Compose displayName for non-HTML uses: [prefix] [epithet] species [provenance]
+const displayName = [prefix, species, epithet, provenance].filter(Boolean).join(" ");
+
+
+  // Apply boosts (value full; weight/length gentler)
+  const boosted = { ...pendingFish };
+  if (totalMult !== 1.0) {
+    boosted.value = Math.round((boosted.value || 0) * totalMult * 100) / 100;
+    boosted.wt    = Number(((boosted.wt    || 0) * (1 + (totalMult - 1) * wtScale)).toFixed(3));
+    boosted.len   = Number(((boosted.len   || 0) * (1 + (totalMult - 1) * lenScale)).toFixed(2));
+  }
+
+  boosted.displayName = displayName;
+  boosted._mythicMeta = { gotPrefix, gotTitle, totalMult };
+  boosted._nameParts  = { prefix, epithet, species, provenance };
+
+  return boosted;
+}
+
+// Safely read/write your existing upgrades.luck if you use option B
+function readBaseLuck() {
+  // adjust if your state object is named differently
+  return (window.state?.upgrades?.luck) ?? (window.s?.upgrades?.luck) ?? 0;
+}
+function writeBaseLuck(v) {
+  if (window.state?.upgrades) window.state.upgrades.luck = v;
+  else if (window.s?.upgrades) window.s.upgrades.luck = v;
+}
+
+
+
+
+// Rarity and Fish Database (expanded + Treasure tier)
+;(() => {
+  // ----- TIERS (ordered) -----
+  window.TIERS = ["trash","common","uncommon","rare","epic","legendary","treasure","artifact","shadow"];
+
+  // ----- Colors (CSS class names you already style) -----
+  window.TIER_COLORS = {
+    trash:"t-trash", common:"t-common", uncommon:"t-uncommon", rare:"t-rare",
+    epic:"t-epic", legendary:"t-legendary", treasure:"t-treasure",
+    artifact:"t-artifact", shadow:"t-shadow"
+  };
+
+  // ----- Value multipliers (treasure sits between legendary and artifact) -----
+  window.TIER_MULT = {
+    trash:.1, common:1, uncommon:1.5, rare:3, epic:6, legendary:12, treasure:18, artifact:25, shadow:50
+  };
+
+  // ----- Base tier roll chances (tune to taste) -----
+  window.BASE_TIER_CHANCE = {
+    trash:.35, common:.30, uncommon:.20, rare:.10, epic:.04, legendary:.008, treasure:.004, artifact:.002, shadow:.0002
+  };
+
+  // ----- Locations (add treasure multipliers too) -----
+  window.LOCATIONS = [
+  { id:"pond",  name:"Quiet Pond",
+    mult:{ trash:1.2, common:1.1, uncommon:1.0, rare:.8,  epic:.7,  legendary:.6, treasure:.55, artifact:.5,  shadow:.45 },
+    reqBoatLvl:0
+  },
+  { id:"lake",  name:"Silver Lake",
+    mult:{ trash:.9,  common:1.0, uncommon:1.1, rare:1.0, epic:.95, legendary:.9, treasure:.85, artifact:.8, shadow:.7 },
+    reqBoatLvl:1
+  },
+  { id:"coast", name:"Open Coast",
+    mult:{ trash:.7,  common:.85,uncommon:1.0, rare:1.2, epic:1.2,  legendary:1.1, treasure:1.05, artifact:1.0, shadow:.9 },
+    reqBoatLvl:2
+  },
+  { id:"abyss", name:"Midnight Abyss",
+    mult:{ trash:.5,  common:.6, uncommon:.8, rare:1.4, epic:1.6,  legendary:1.5, treasure:1.45, artifact:1.4, shadow:1.6 },
+    reqBoatLvl:3
+  }
+];
+
+// ---- Rarity helpers (attach to window so everyone can see them) ----
+window.tierClassName = function(t){
+  return (window.TIER_COLORS && window.TIER_COLORS[t]) ? window.TIER_COLORS[t] : "";
+};
+
+window.rarityIndex = function(t){
+  return Array.isArray(window.TIERS) ? window.TIERS.indexOf(t) : -1;
+};
+
+window.compareByTier = function(a, b){
+  return window.rarityIndex(a.tier) - window.rarityIndex(b.tier);
+};
+
+
+  // ----- Fish DB (length cm, weight kg, base value $ before multipliers) -----
+  window.FISH_DB = [
+    // TRASH
+    { name:"Old Boot",          tier:"trash", len:[10,30],  wt:[0.5,1.2],   base:1 },
+    { name:"Rusty Tin Can",     tier:"trash", len:[8,18],   wt:[0.4,0.9],   base:1 },
+    { name:"Tangled Seaweed",   tier:"trash", len:[15,40],  wt:[0.2,0.7],   base:1 },
+    { name:"Waterlogged Crate", tier:"trash", len:[25,60],  wt:[2.0,8.0],   base:2 },
+    { name:"Broken Bottle",     tier:"trash", len:[6,15],   wt:[0.2,0.4],   base:1 },
+    { name:"Snarled Line Ball", tier:"trash", len:[10,20],  wt:[0.3,0.6],   base:1 },
+    // New additions
+{ name:"Rubber Duck",          tier:"trash", len:[10,18],  wt:[0.05,0.12],  base:1 },
+{ name:"Lost Sunglasses",      tier:"trash", len:[12,18],  wt:[0.05,0.2],   base:1 },
+{ name:"Single Flip-Flop",     tier:"trash", len:[20,32],  wt:[0.08,0.25],  base:1 },
+{ name:"Soaked Boot", tier:"trash", len:[8,14], wt:[0.1,0.4], base:1 },
+{ name:"Plastic Grocery Bag",  tier:"trash", len:[20,50],  wt:[0.01,0.05],  base:1 },
+{ name:"Six-Pack Rings",       tier:"trash", len:[10,20],  wt:[0.01,0.03],  base:1 },
+{ name:"Soggy Newspaper",      tier:"trash", len:[20,40],  wt:[0.05,0.2],   base:1 },
+{ name:"Old License Plate",    tier:"trash", len:[12,30],  wt:[0.2,0.6],    base:3 },
+{ name:"Bent Fishing Hook",    tier:"trash", len:[2,6],    wt:[0.01,0.05],  base:1 },
+{ name:"Tangled Nylon Rope",   tier:"trash", len:[30,120], wt:[0.5,3.0],    base:2 },
+{ name:"Driftwood Chunk",      tier:"trash", len:[20,80],  wt:[0.6,4.0],    base:2 },
+{ name:"Deflated Beach Ball",  tier:"trash", len:[20,40],  wt:[0.05,0.2],   base:1 },
+{ name:"Traffic Cone",  tier:"trash", len:[25,45],  wt:[0.8,2.2],    base:2 },
+{ name:"Clamshell", tier:"trash", len:[25,60], wt:[3.0,12.0], base:3 },
+{ name:"Car Tire",             tier:"trash", len:[40,70],  wt:[6.0,12.0],   base:2 },
+{ name:"Message in a Bottle",  tier:"trash", len:[18,30],  wt:[0.4,1.0],    base:4 },
+{ name:"Broken Oar",           tier:"trash", len:[60,140], wt:[1.0,4.5],    base:2 },
+{ name:"Empty Tackle Box",   tier:"trash", len:[20,40],  wt:[0.6,2.0],    base:2 },
+{ name:"Rusty Pocket Knife",   tier:"trash", len:[8,15],   wt:[0.1,0.3],    base:2 },
+{ name:"Boot Full of Gold", tier:"trash", len:[8,14], wt:[0.10,1.640], base:240 },
+{ name:"Barnacle-Crusted Mug", tier:"trash", len:[8,14], wt:[0.2,0.5], base:1 },
+{ name:"Corroded Padlock",     tier:"trash", len:[5,9],  wt:[0.1,0.3], base:1 },
+{ name:"Snapped Rod Tip",      tier:"trash", len:[12,22],wt:[0.2,0.6], base:1 },
+{ name:"Cracked Lure Box",     tier:"trash", len:[18,28],wt:[0.3,0.9], base:2 },
+{ name:"Kelp-Wrapped Brick",   tier:"trash", len:[10,20],wt:[1.2,2.8], base:2 },
+{ name:"Lost Phone (Dead)",    tier:"trash", len:[12,16],wt:[0.14,0.28], base:3 },
+{ name:"Bent Net Frame",       tier:"trash", len:[30,70],wt:[0.8,3.5], base:2 },
+{ name:"Buoy Fragment",        tier:"trash", len:[18,40],wt:[0.2,1.0], base:2 },
+{ name:"Cracked Dive Mask",    tier:"trash", len:[14,22],wt:[0.15,0.4], base:2 },
+{ name:"Rusty Anchor Chain",   tier:"trash", len:[40,120],wt:[2.0,9.0], base:3 },
+
+    // COMMON
+    { name:"Bluegill",          tier:"common", len:[8,25],   wt:[0.3,1.0],  base:6 },
+    { name:"Carp",              tier:"common", len:[20,60],  wt:[1.0,5.0],  base:8 },
+    { name:"Perch",             tier:"common", len:[10,30],  wt:[0.4,1.2],  base:7 },
+    { name:"Crappie",           tier:"common", len:[12,35],  wt:[0.4,1.4],  base:7 },
+    { name:"Tilapia",           tier:"common", len:[20,45],  wt:[0.8,2.0],  base:7 },
+    { name:"Sunfish",           tier:"common", len:[8,22],   wt:[0.2,0.8],  base:6 },
+    { name:"Goldfish",          tier:"common", len:[2,15],   wt:[0.1,1.0],  base:5 },
+    // New additions
+{ name:"Minnow",            tier:"common", len:[3,10],   wt:[0.02,0.1],  base:3 },
+{ name:"Shad",              tier:"common", len:[10,25],  wt:[0.1,0.6],   base:5 },
+{ name:"Anchovy",           tier:"common", len:[0.1,1],   wt:[0.05,0.2],  base:2 },
+{ name:"Sardine",           tier:"common", len:[8,20],   wt:[0.1,0.3],   base:5 },
+{ name:"Herring",           tier:"common", len:[15,35],  wt:[0.2,0.8],   base:6 },
+{ name:"Catfish (Bullhead)",tier:"common", len:[15,40],  wt:[0.5,2.0],   base:7 },
+{ name:"Mullet",            tier:"common", len:[20,50],  wt:[0.5,2.5],   base:7 },
+{ name:"Panfish",           tier:"common", len:[8,25],   wt:[0.3,1.0],   base:6 },
+{ name:"Rock Bass",         tier:"common", len:[12,30],  wt:[0.3,1.2],   base:7 },
+{ name:"White Bass",        tier:"common", len:[20,40],  wt:[0.5,2.0],   base:7 },
+{ name:"Black Drum (Juvenile)", tier:"common", len:[20,50], wt:[1.0,4.0], base:8 },
+{ name:"Flounder",          tier:"common", len:[20,40],  wt:[0.6,2.0],   base:8 },
+{ name:"Pumpkinseed",          tier:"common", len:[8,22],  wt:[0.2,0.8],  base:6 },
+{ name:"Redear Sunfish",       tier:"common", len:[10,28], wt:[0.3,1.2],  base:6 },
+{ name:"Roach",                tier:"common", len:[12,30], wt:[0.2,1.0],  base:6 },
+{ name:"Tench",                tier:"common", len:[25,55], wt:[0.7,3.5],  base:7 },
+{ name:"Bream",                tier:"common", len:[18,45], wt:[0.4,2.2],  base:7 },
+{ name:"Smelt",                tier:"common", len:[7,20],  wt:[0.03,0.12],base:3 },
+{ name:"Sculpin",              tier:"common", len:[8,25],  wt:[0.1,0.6],  base:5 },
+{ name:"Needlefish (Small)",   tier:"common", len:[20,45], wt:[0.1,0.5],  base:6 },
+{ name:"Colorful Guppies (Mixed)",       tier:"common", len:[5,12],  wt:[0.02,0.1], base:4 },
+{ name:"Glass Shrimp",         tier:"common", len:[4,6],   wt:[0.005,0.02], base:4 },
+
+// Crustaceans & others
+{ name:"Blue Crab",         tier:"common", len:[10,25],  wt:[0.3,1.2],   base:7 },
+{ name:"Dungeness Crab",    tier:"common", len:[12,25],  wt:[0.5,1.5],   base:8 },
+{ name:"Hermit Crab",       tier:"common", len:[5,12],   wt:[0.1,0.3],   base:4 },
+{ name:"Shrimp",            tier:"common", len:[5,20],   wt:[0.05,0.4],  base:5 },
+{ name:"Crawfish",          tier:"common", len:[5,15],   wt:[0.05,0.3],  base:4 },
+{ name:"Clam",              tier:"common", len:[5,15],   wt:[0.05,0.4],  base:5 },
+{ name:"Mussel",            tier:"common", len:[3,10],   wt:[0.02,0.1],  base:4 },
+{ name:"Oyster",            tier:"common", len:[5,12],   wt:[0.05,0.3],  base:6 },
+
+    // UNCOMMON
+    { name:"Largemouth Bass",   tier:"uncommon", len:[25,70], wt:[1.2,6.0],  base:15 },
+    { name:"Rainbow Trout",     tier:"uncommon", len:[20,58], wt:[0.8,3.2],  base:14 },
+    { name:"Channel Catfish",   tier:"uncommon", len:[30,90], wt:[1.5,10.0], base:16 },
+    { name:"Smallmouth Bass",   tier:"uncommon", len:[22,55], wt:[0.8,3.5],  base:15 },
+    { name:"Northern Pike",     tier:"uncommon", len:[40,110],wt:[1.5,9.0],  base:16 },
+    { name:"Walleye",           tier:"uncommon", len:[30,80], wt:[1.0,6.0],  base:15 },
+    { name:"Brook Trout",       tier:"uncommon", len:[20,50],  wt:[0.5,2.5],   base:14 },
+{ name:"Brown Trout",       tier:"uncommon", len:[25,70],  wt:[1.0,4.0],   base:15 },
+{ name:"Steelhead",         tier:"uncommon", len:[40,80],  wt:[1.5,6.0],   base:16 },
+{ name:"Arctic Grayling",   tier:"uncommon", len:[20,45],  wt:[0.5,1.5],   base:14 },
+{ name:"Pickerel",          tier:"uncommon", len:[25,55],  wt:[0.8,2.5],   base:15 },
+{ name:"Piranha",tier:"uncommon", len:[40,100], wt:[2.0,7.0],   base:16 },
+{ name:"Sheepshead",        tier:"uncommon", len:[30,70],  wt:[1.0,5.0],   base:15 },
+{ name:"Whitefish",         tier:"uncommon", len:[25,55],  wt:[0.8,3.0],   base:14 },
+{ name:"Chub",              tier:"uncommon", len:[15,35],  wt:[0.3,1.2],   base:13 },
+{ name:"Cisco",             tier:"uncommon", len:[20,40],  wt:[0.5,1.8],   base:13 },
+{ name:"Gray Snapper",      tier:"uncommon", len:[25,60],  wt:[0.7,3.0],   base:15 },
+{ name:"Red Drum (Juvenile)",tier:"uncommon", len:[30,70], wt:[1.0,6.0],   base:16 },
+{ name:"Snook",             tier:"uncommon", len:[30,80],  wt:[1.0,6.5],   base:15 },
+{ name:"Black Crappie",     tier:"uncommon", len:[15,40],  wt:[0.5,1.5],   base:14 },
+{ name:"Zander",               tier:"uncommon", len:[35,80], wt:[1.0,7.0],  base:15 },
+{ name:"Tiger Muskie",         tier:"uncommon", len:[60,120],wt:[3.0,12.0], base:16 },
+{ name:"Sea Trout (Speckled)", tier:"uncommon", len:[25,70], wt:[0.7,4.0],  base:15 },
+{ name:"Black Seabass",        tier:"uncommon", len:[25,55], wt:[0.6,3.0],  base:14 },
+{ name:"Hogfish",              tier:"uncommon", len:[30,70], wt:[1.0,6.0],  base:15 },
+{ name:"Golden Dorado (Juvenile)", tier:"uncommon", len:[25,60], wt:[0.8,4.0], base:16 },
+{ name:"Arroyo Chub (Large)",  tier:"uncommon", len:[12,22], wt:[0.08,0.25],base:13 },
+{ name:"Cunner",               tier:"uncommon", len:[15,40], wt:[0.3,1.2],  base:14 },
+{ name:"Opaleye",              tier:"uncommon", len:[20,55], wt:[0.6,2.8],  base:14 },
+{ name:"Weakfish",             tier:"uncommon", len:[30,80], wt:[0.9,5.5],  base:15 },
+
+    // RARE
+    { name:"Atlantic Salmon",   tier:"rare", len:[50,110], wt:[2.0,15.0],   base:30 },
+    { name:"Yellowfin Tuna",    tier:"rare", len:[60,180], wt:[4.0,60.0],   base:34 },
+    { name:"Swordfish",         tier:"rare", len:[80,200], wt:[10.0,120.0], base:36 },
+    { name:"Pacific Halibut",   tier:"rare", len:[70,170], wt:[8.0,90.0],   base:32 },
+    { name:"Tarpon",            tier:"rare", len:[60,250], wt:[10.0,160.0], base:33 },
+    { name:"Striped Marlin",    tier:"rare", len:[100,250],wt:[20.0,140.0], base:35 },
+    { name:"King Mackerel",     tier:"rare", len:[60,170],  wt:[5.0,45.0],    base:31 },
+{ name:"Cobia",             tier:"rare", len:[60,150],  wt:[4.0,50.0],    base:32 },
+{ name:"Permit",            tier:"rare", len:[40,100],  wt:[2.0,15.0],    base:30 },
+{ name:"Bonefish",          tier:"rare", len:[40,80],   wt:[1.0,6.0],     base:29 },
+{ name:"Bloodlusted Piranha", tier:"rare", len:[50,120], wt:[3.0,20.0], base:31 },
+{ name:"Bluefish",          tier:"rare", len:[40,110],  wt:[2.0,14.0],    base:30 },
+{ name:"Barracuda",         tier:"rare", len:[70,180],  wt:[5.0,40.0],    base:33 },
+{ name:"King Salmon",       tier:"rare", len:[70,140],  wt:[6.0,30.0],    base:32 },
+{ name:"White Seabass",     tier:"rare", len:[60,150],  wt:[5.0,35.0],    base:31 },
+{ name:"Skipjack Tuna",     tier:"rare", len:[50,100],  wt:[2.0,10.0],    base:30 },
+{ name:"Bigeye Tuna",       tier:"rare", len:[70,200],  wt:[8.0,80.0],    base:34 },
+{ name:"Lingcod",           tier:"rare", len:[50,120],  wt:[3.0,20.0],    base:30 },
+{ name:"Rockfish (Large)",  tier:"rare", len:[40,90],   wt:[1.5,8.0],     base:29 },
+{ name:"Kingfish",          tier:"rare", len:[50,140],  wt:[3.0,25.0],    base:31 },
+{ name:"Giant Starfish",    tier:"rare", len:[60,120],  wt:[4.0,20.0],    base:30 },
+{ name:"Dogtooth Tuna",        tier:"rare", len:[70,180], wt:[10.0,100.0], base:34 },
+{ name:"Golden Trevally",      tier:"rare", len:[40,100], wt:[2.0,18.0],   base:31 },
+{ name:"Giant Trevally",       tier:"rare", len:[60,170], wt:[6.0,65.0],   base:33 },
+{ name:"Atlantic Bonito",      tier:"rare", len:[40,90],  wt:[1.5,6.0],    base:30 },
+{ name:"Shortfin Mako (Small)",tier:"rare", len:[90,180], wt:[15.0,90.0],  base:35 },
+{ name:"Dorade (Sea Bream)",   tier:"rare", len:[25,70],  wt:[0.8,6.0],    base:30 },
+{ name:"Queenfish",            tier:"rare", len:[40,110], wt:[2.0,14.0],   base:31 },
+{ name:"Blackfin Tuna",        tier:"rare", len:[50,120], wt:[3.0,25.0],   base:31 },
+{ name:"Heavy Breifcase",         tier:"rare", len:[50,90],  wt:[8.0,70.0],   base:232 },
+{ name:"Sea Turtle",   tier:"rare", len:[40,510], wt:[3.0,118.0],   base:132 },
+
+     // EPIC
+{ name:"Mahi-Mahi",         tier:"epic", len:[60,150],  wt:[5.0,35.0],    base:60 },
+{ name:"Goliath Grouper",   tier:"epic", len:[80,220],  wt:[15.0,180.0],  base:70 },
+{ name:"Bluefin Tuna",      tier:"epic", len:[70,220],  wt:[20.0,220.0],  base:80 },
+{ name:"Unknown River Monster",          tier:"epic", len:[60,230],  wt:[8.0,40.0],    base:62 },
+{ name:"Opah Moonfish",     tier:"epic", len:[60,110],  wt:[20.0,90.0],   base:64 },
+{ name:"Flying Fish",       tier:"epic", len:[90,220],  wt:[15.0,200.0],  base:68 },
+
+// New additions
+{ name:"Octopus",     tier:"epic", len:[80,200],  wt:[15.0,150.0],  base:72 },
+{ name:"Amberjack",         tier:"epic", len:[70,180],  wt:[10.0,70.0],   base:65 },
+{ name:"Yellowtail Kingfish", tier:"epic", len:[70,160],wt:[8.0,50.0],    base:64 },
+{ name:"Cubera Snapper",    tier:"epic", len:[60,140],  wt:[10.0,57.0],   base:63 },
+{ name:"Tilefish",          tier:"epic", len:[40,100],  wt:[4.0,20.0],    base:61 },
+{ name:"Wahoo",             tier:"epic", len:[100,250], wt:[15.0,100.0],  base:70 },
+{ name:"Black Grouper",     tier:"epic", len:[80,200],  wt:[12.0,100.0],  base:68 },
+{ name:"Crocodile",tier:"epic", len:[70,180],  wt:[10.0,80.0],   base:67 },
+{ name:"Lobster",   tier:"epic", len:[60,130],  wt:[6.0,30.0],    base:62 },
+{ name:"King Croaker",      tier:"epic", len:[70,150],  wt:[8.0,50.0],    base:66 },
+{ name:"Barramundi",tier:"epic", len:[80,180],  wt:[12.0,80.0],   base:67 },
+{ name:"Swordtail Snapper", tier:"epic", len:[50,120],  wt:[5.0,30.0],    base:63 },
+{ name:"Silver Tarpon",     tier:"epic", len:[100,200], wt:[12.0,90.0],   base:68 },
+{ name:"Manta Ray",    tier:"epic", len:[70,150],  wt:[10.0,40.0],   base:69 },
+{ name:"King Crab",    tier:"epic", len:[30,350],  wt:[10.0,140.0],   base:72 },
+{ name:"Sailfish",             tier:"epic", len:[120,300], wt:[15.0,90.0],   base:70 },
+{ name:"Yellowfin Amberjack",  tier:"epic", len:[80,180],  wt:[12.0,70.0],   base:66 },
+{ name:"Big Cubera (Reef King)", tier:"epic", len:[70,150], wt:[12.0,57.0],  base:64 },
+{ name:"Longtail Tuna",        tier:"epic", len:[80,160],  wt:[10.0,45.0],   base:63 },
+{ name:"Dusky Grouper",        tier:"epic", len:[70,180],  wt:[10.0,85.0],   base:68 },
+{ name:"Giant Barracuda",      tier:"epic", len:[100,200], wt:[12.0,50.0],   base:66 },
+{ name:"Golden Manta",  tier:"epic", len:[120,250], wt:[20.0,80.0],   base:71 },
+{ name:"Green Jobfish",        tier:"epic", len:[60,120],  wt:[6.0,28.0],    base:62 },
+{ name:"Deepwater Queen Snapper", tier:"epic", len:[60,130],  wt:[7.0,25.0],    base:63 },
+{ name:"Giant Hogfish",        tier:"epic", len:[50,100],  wt:[5.0,20.0],    base:61 },
+
+
+    // LEGENDARY
+{ name:"Golden Koi",          tier:"legendary", len:[30,90],   wt:[2.0,12.0],     base:160 },
+{ name:"Great White Shark",   tier:"legendary", len:[150,600], wt:[40.0,1100.0],  base:180 },
+{ name:"Hammerhead Shark",    tier:"legendary", len:[150,500], wt:[40.0,1100.0],  base:150 },
+{ name:"Oarfish",             tier:"legendary", len:[200,800], wt:[30.0,300.0],   base:170 },
+{ name:"Arapaima",            tier:"legendary", len:[150,300], wt:[40.0,200.0],   base:165 },
+{ name:"Mekong Catfish",      tier:"legendary", len:[150,300], wt:[60.0,350.0],   base:175 },
+{ name:"Beluga Sturgeon",      tier:"legendary", len:[200,500], wt:[60.0,1000.0], base:176 },
+{ name:"Alligator Gar (Giant)",tier:"legendary", len:[150,300], wt:[25.0,160.0],  base:165 },
+{ name:"Giant Sawfish",        tier:"legendary", len:[200,600], wt:[50.0,500.0],  base:172 },
+{ name:"Giant Trevally (Old King)", tier:"legendary", len:[120,180], wt:[30.0,80.0], base:168 },
+{ name:"Nursery Shark", tier:"legendary", len:[150,240], wt:[40.0,160.0],  base:170 },
+{ name:"Giant Mekong Barb",    tier:"legendary", len:[150,300], wt:[50.0,300.0],  base:173 },
+{ name:"Broadbill Sword", tier:"legendary", len:[200,350], wt:[100.0,300.0], base:175 },
+{ name:"Black Tipped Shark", tier:"legendary", len:[150,330], wt:[200.0,1000.0], base:174 },
+{ name:"Arctic Char", tier:"legendary", len:[80,120],  wt:[10.0,35.0],   base:162 },
+
+
+// New additions
+{ name:"Emperor Sturgeon",    tier:"legendary", len:[200,500], wt:[80.0,600.0],   base:172 },
+{ name:"Titan Manta Ray",     tier:"legendary", len:[400,700], wt:[150.0,1000.0], base:178 },
+{ name:"Ghost Whale",         tier:"legendary", len:[800,1200],wt:[500.0,3000.0], base:185 },
+{ name:"Devil's Hole pupfish",   tier:"legendary", len:[10,150], wt:[10.0,50.0], base:176 },
+{ name:"Whale Shark",  tier:"legendary", len:[220,640], wt:[70.0,3360.0],    base:168 },
+{ name:"Electric Eel",      tier:"legendary", len:[250,500], wt:[20.0,140.0],   base:166 },
+{ name:"Reef Shark",    tier:"legendary", len:[60,150],  wt:[5.0,40.0],     base:162 },
+{ name:"Mutated Leviathan Bass",tier:"legendary", len:[150,500], wt:[25.0,380.0],   base:170 },
+{ name:"Goblinshark",     tier:"legendary", len:[180,350], wt:[40.0,250.0],   base:174 },
+{ name:"Collosal Squid", tier:"legendary", len:[1150,2280], wt:[20.0,1120.0],   base:263 },
+{ name:"Angelfish",   tier:"legendary", len:[140,280], wt:[18.0,100.0],   base:164 },
+
+
+    // TREASURE (between legendary and artifact; very valuable “trophy” species)
+    { name:"Treasure Carp",         tier:"treasure", len:[40,100],  wt:[3.0,18.0],   base:220 },
+    { name:"Crownfin Arowana",      tier:"treasure", len:[35,95],   wt:[2.5,12.0],   base:230 },
+    { name:"Etheral Bass",       tier:"treasure", len:[25,70],   wt:[1.5,9.0],    base:225 },
+    { name:"Goldback Snapper",     tier:"treasure", len:[50,120],  wt:[5.0,40.0],   base:235 },
+    { name:"Opaline Seahorse",      tier:"treasure", len:[10,35],   wt:[0.1,0.6],    base:215 },
+    { name:"Auric Lionfish",        tier:"treasure", len:[20,45],   wt:[0.5,3.0],    base:228 },
+    { name:"Ancient Coin Bag",      tier:"treasure", len:[10,25],   wt:[1.0,3.0],    base:240 },
+{ name:"Jeweled Goblet",        tier:"treasure", len:[12,30],   wt:[0.8,2.5],    base:245 },
+{ name:"Pirate’s Treasure Chest", tier:"treasure", len:[40,180], wt:[50.0,220.0], base:660 },
+{ name:"Silver Doubloon Pile",  tier:"treasure", len:[8,20],    wt:[0.5,1.5],    base:238 },
+{ name:"Golden Crown",          tier:"treasure", len:[20,40],   wt:[2.0,6.0],    base:250 },
+{ name:"Lost Relic Idol",       tier:"treasure", len:[25,50],   wt:[3.0,10.0],   base:255 },
+{ name:"Pearl Necklace",        tier:"treasure", len:[15,30],   wt:[0.3,1.0],    base:236 },
+{ name:"Sunken Relic Sword",    tier:"treasure", len:[60,120],  wt:[8.0,25.0],   base:252 },
+{ name:"Ancient Amphora",       tier:"treasure", len:[30,70],   wt:[6.0,20.0],   base:242 },
+{ name:"Royal Scepter",         tier:"treasure", len:[25,60],   wt:[2.0,8.0],    base:248 },
+{ name:"Crystal Chalice",       tier:"treasure", len:[20,45],   wt:[1.0,4.0],    base:244 },
+{ name:"Ancient King's Sextant",    tier:"treasure", len:[18,36],  wt:[1.2,4.5],   base:252 },
+{ name:"Gold-Inlaid Spyglass", tier:"treasure", len:[20,40],  wt:[0.8,2.8],   base:246 },
+{ name:"Sovereign Signet Box", tier:"treasure", len:[12,24],  wt:[0.6,1.8],   base:240 },
+{ name:"Perfect Pearl",         tier:"treasure", len:[16,30],  wt:[0.5,1.6],   base:248 },
+{ name:"Gilded Doubloon Cache",tier:"treasure", len:[16,26],  wt:[1.0,13.0],   base:255 },
+{ name:"Ornate Navigators Compass", tier:"treasure", len:[10,18], wt:[0.3,0.8], base:238 },
+
+    // ARTIFACT
+    { name:"Fossil Coelacanth",  tier:"artifact", len:[80,200], wt:[10.0,100.0], base:350 },
+    { name:"Ancient Sturgeon",   tier:"artifact", len:[100,300],wt:[20.0,400.0], base:330 },
+    { name:"Gigantic Clam",  tier:"artifact", len:[90,160], wt:[310.0,5545.0],  base:340 },
+    { name:"Relict Sawfish",     tier:"artifact", len:[150,500],wt:[30.0,300.0], base:360 },
+    { name:"Orca",     tier:"artifact", len:[250,800],wt:[30.0,1300.0], base:360 },
+{ name:"Blue Whale",          tier:"artifact", len:[2000,3000], wt:[90000.0,150000.0], base:500 },
+{ name:"Gray Whale",      tier:"artifact", len:[1400,2800],   wt:[2250.0,71000.0],     base:490 },
+{ name:"Plesiosaur",   tier:"artifact", len:[800,2000],  wt:[2000.0,8000.0],    base:480 },
+{ name:"Primordial Dunkleosteus", tier:"artifact", len:[500,1000], wt:[1000.0,5000.0], base:440 },
+{ name:"Ancient Kraken",tier:"artifact", len:[600,1200], wt:[1200.0,6000.0],  base:460 },
+{ name:"Titan Sea Turtle",        tier:"artifact", len:[400,900],   wt:[600.0,3500.0],     base:430 },
+{ name:"Paleocrocodile",      tier:"artifact", len:[500,1000],  wt:[700.0,4000.0],     base:425 },
+{ name:"Mythic Narwhal",      tier:"artifact", len:[300,600],   wt:[300.0,2000.0],     base:410 },
+{ name:"Crystal Serpent",     tier:"artifact", len:[250,700],   wt:[150.0,1200.0],     base:400 },
+{ name:"Mammoth Walrus",       tier:"artifact", len:[250,450], wt:[800.0,1800.0], base:420 },
+
+    // SHADOW
+    { name:"Abyssal Leviathan",  tier:"shadow", len:[300,1200], wt:[200.0,5000.0], base:900 },
+    { name:"Void Ray",           tier:"shadow", len:[200,800],  wt:[80.0,1200.0],  base:880 },
+    { name:"Nightmare Angler",   tier:"shadow", len:[50,160],   wt:[5.0,45.0],     base:860 },
+    { name:"Umbral Serpent Eel", tier:"shadow", len:[150,600],  wt:[20.0,300.0],   base:870 },
+{ name:"Megalodon",              tier:"shadow", len:[1000,2000], wt:[15000.0,60000.0], base:940 },
+{ name:"Mosasaurus",             tier:"shadow", len:[800,1500],  wt:[8000.0,30000.0],  base:920 },
+{ name:"Leedsichthys",           tier:"shadow", len:[900,1800],  wt:[5000.0,25000.0],  base:905 },
+{ name:"Basilosaurus",           tier:"shadow", len:[600,1200],  wt:[2000.0,12000.0],  base:898 },
+
+// Eldritch / dimensional
+{ name:"Penumbra Kraken",        tier:"shadow", len:[400,1400],  wt:[800.0,9000.0],    base:915 },
+{ name:"Whale Father",      tier:"shadow", len:[1200,2200], wt:[50000.0,150000.0], base:960 },
+{ name:"Tesseract Carp",         tier:"shadow", len:[80,240],    wt:[2.0,40.0],        base:890 },
+{ name:"Nullspace Ray",          tier:"shadow", len:[200,900],   wt:[100.0,6000.0],    base:905 },
+{ name:"Fractal Riftfish",       tier:"shadow", len:[60,300],    wt:[1.5,120.0],       base:885 },
+{ name:"Eventide Phantom Shoal", tier:"shadow", len:[30,200],    wt:[0.5,90.0],        base:882 },
+
+// Abyssal horrors
+{ name:"Hadal Behemoth",         tier:"shadow", len:[700,1600],  wt:[4000.0,28000.0],  base:930 },
+{ name:"Underwater Research Facility",     tier:"shadow", len:[6250,11700],   wt:[9060.0,99900.0],      base:1192 },
+{ name:"Oblivion Coelacanth",    tier:"shadow", len:[120,400],   wt:[20.0,500.0],      base:888 },
+{ name:"Dimensional Oarfish",    tier:"shadow", len:[400,1200],  wt:[80.0,1500.0],     base:897 },
+{ name:"Shadow Herald",          tier:"shadow", len:[180,900],   wt:[30.0,3500.0],     base:910 }
+  ]
+
+    const SHOP_ITEMS = [
+      { id:"bait", name:"Better Bait", desc:"Slightly favors rarer tiers.", getLevel:s=>s.upgrades.bait, max:10, cost:l=> 50 * Math.pow(1.35, l), onBuy:s=>{} },
+      { id:"rod", name:"Pro Rod", desc:"Steadier marker speed (easier hooks).", getLevel:s=>s.upgrades.rod, max:10, cost:l=> 80 * Math.pow(1.4, l), onBuy:s=>{} },
+      { id:"boat", name:"Bigger Boat", desc:"Unlocks new waters.", getLevel:s=>s.upgrades.boat, max:4, cost:l=> 200 * Math.pow(2.0, l), onBuy:s=>{} },
+      { id:"auto", name:"Auto-Reel", desc:"Passive catch every so often.", getLevel:s=>s.upgrades.auto, max:8, cost:l=> 150 * Math.pow(1.6, l), onBuy:s=>restartPassiveTimer() },
+{ id:"luck", name:"Lucky Charm", desc:"Improves odds of higher rarity fish.", getLevel:s=>s.upgrades.luck, max:10, cost:l=> 120 * Math.pow(1.5, l), onBuy:s=>{} },
+    ]
+
+// -------------------- Save / Load (robust + migration) --------------------
+const SAVE_KEY = "fishGameSaveV1";
+const SCHEMA_VERSION = 3; // ← bump to 3 for Unlimifish baseline
+
+const newState = () => ({
+  _ver: SCHEMA_VERSION,
+  money: 25,
+  inventory: [],
+  log: {},
+  upgrades: { bait:0, rod:0, boat:0, auto:0, luck:0 },
+  location: "pond",
+  stats: { casts:0, hooks:0, catches:0, sold:0, bestValue:0 },
+  // meta / prestige
+  prestigeLevel: 0,
+  unlimiscales: 0,
+  _prestigeNotified: false
+});
+
+// If you kept the small HTML helper, rename it and we’ll call it:
+function migrateStateV2Additions(s){
+  // (kept for compatibility if you don't want to delete it entirely)
+  s.prestigeLevel ??= 0;
+  s.unlimiscales ??= 0;
+  s._prestigeNotified ??= false;
+}
+
+function migrateState(s){
+  if (!s || typeof s !== 'object') return newState();
+  const v = Number(s._ver || 1);
+
+  // v1 → v2: prestige/scale fields
+  if (v <= 1){
+    if (typeof s.prestigeLevel !== 'number') s.prestigeLevel = 0;
+    if (typeof s.unlimiscales !== 'number') s.unlimiscales = 0;
+    if (typeof s._prestigeNotified !== 'boolean') s._prestigeNotified = false;
+  }
+
+  // v2 → v3: (this release) nothing structural yet, but keep hook
+  if (v <= 2){
+    // place for future migrations; we still sanity-check below
+  }
+
+  // Optional: if you left the old mini-migrator in HTML, call it:
+  try { if (typeof migrateStateV2Additions === 'function') migrateStateV2Additions(s); } catch(_){}
+
+  // Defensive fill (keeps UI safe)
+  s.money     = Number.isFinite(s.money) ? s.money : 25;
+  s.inventory = Array.isArray(s.inventory) ? s.inventory : [];
+  s.log       = s.log && typeof s.log === 'object' ? s.log : {};
+  s.upgrades  = Object.assign({ bait:0, rod:0, boat:0, auto:0, luck:0 }, s.upgrades || {});
+  s.location  = typeof s.location === 'string' ? s.location : 'pond';
+  s.stats     = Object.assign({ casts:0, hooks:0, catches:0, sold:0, bestValue:0 }, s.stats || {});
+
+  s.prestigeLevel     = Number.isFinite(s.prestigeLevel) ? s.prestigeLevel : 0;
+  s.unlimiscales      = Number.isFinite(s.unlimiscales) ? s.unlimiscales : 0;
+  s._prestigeNotified = !!s._prestigeNotified;
+
+  s._ver = SCHEMA_VERSION;
+  return s;
+}
+
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return migrateState(parsed) || null;
+  }catch{
+    return null;
+  }
+}
+
+let state = load() || newState();
+window.state = state; // ✅ make the loaded state visible to UI
+
+let _saveTimer = null;
+function save(immediate = false){
+  try{
+    const toStore = pruneForSave(state);
+    if (immediate){
+      localStorage.setItem(SAVE_KEY, JSON.stringify(toStore));
+      afterSaveSideEffects();
+      return;
+    }
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(() => {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(toStore));
+      afterSaveSideEffects();
+    }, 80);
+  }catch(e){
+    try{
+      localStorage.setItem(SAVE_KEY, JSON.stringify(pruneForSave(state)));
+      afterSaveSideEffects();
+    }catch(_){}
+  }
+}
+
+function pruneForSave(s){
+  const copy = { ...s };
+  copy._ver = SCHEMA_VERSION;
+  return copy;
+}
+
+function afterSaveSideEffects(){
+  if (typeof updateUnlimiscalesUI === 'function') updateUnlimiscalesUI();
+  if (typeof updatePrestigeUI      === 'function') updatePrestigeUI();
+}
+
+// -------------------- Helpers you might call elsewhere --------------------
+
+// Hard reset: optionally preserve meta (prestige & unlimiscales) when the user clicks “Reset Save”
+function resetSave({ keepMeta = true } = {}){
+  const meta = keepMeta ? {
+    prestigeLevel: state.prestigeLevel|0,
+    unlimiscales:  state.unlimiscales|0
+  } : { prestigeLevel:0, unlimiscales:0 };
+
+  state = Object.assign(newState(), meta);
+  save(true);
+
+  // Rerender the world
+  if (typeof fullRender === 'function') fullRender();
+  if (typeof renderStats === 'function') renderStats();
+  if (typeof renderShop  === 'function') renderShop();
+  if (typeof renderMoney === 'function') renderMoney();
+  if (typeof renderInventory === 'function') renderInventory();
+  if (typeof updatePrestigeButton === 'function') updatePrestigeButton();
+}
+
+// If you ever need to back up / export:
+function exportSave(){
+  try{
+    const blob = new Blob([localStorage.getItem(SAVE_KEY) || ''], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'unlimifish-save.json'; a.click();
+    URL.revokeObjectURL(url);
+  }catch{}
+}
+
+
+    function save(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)) }
+    function reset(){ state = newState(); save(); fullRender(); logMsg("Save reset.") }
+
+    const rnd = (a,b)=> a + Math.random()*(b-a)
+    const choice = arr => arr[(Math.random()*arr.length)|0]
+
+    function weightedChoice(obj){ let sum=0; for(const k in obj) sum += obj[k]; let r = Math.random()*sum; for(const k in obj){ r -= obj[k]; if(r<=0) return k } return Object.keys(obj)[0] }
+
+    function computeTierWeights(){
+  const loc = LOCATIONS.find(l=>l.id===state.location) || LOCATIONS[0];
+  const baitLvl = (state.upgrades?.bait|0);
+
+  // Make sure we're actually using the combo you cranked up:
+  const comboCount    = (window.combo?.count ?? 0);              // your live combo count
+  const luckPerCatch  = (window.combo?.perCatch ?? 0);           // what you set “per catch”
+  const comboLuck     = comboCount * luckPerCatch;               // turn it into a number that grows
+  const flatLuck      = (state.upgrades?.luck ?? 0);
+  const luckLvl = (state.upgrades?.luck ?? 0) + (window.combo?.boost ?? 0);
+
+  const bias = {};
+  const EPS = 1e-9;          // prevents hard-zero walls
+  const K   = 0.02;          // luck sensitivity per tier step
+
+  let sum = 0;
+  for (const t of TIERS){
+    const base      = (BASE_TIER_CHANCE[t] ?? 0);
+    const rareIndex = Math.max(0, TIERS.indexOf(t));             // 0 for trash, grows with rarity
+    const up        = Math.max(0, rareIndex-1);
+
+    // Existing knobs
+    const baitBoost = 1 + (baitLvl * up * 0.03);
+    const penalty   = (t==="trash"||t==="common") ? Math.max(0.1, 1 - baitLvl*0.04) : 1;
+
+    // DO NOT allow loc multipliers to zero-out tiers:
+    const locMult   = Math.max(EPS, (loc.mult?.[t] ?? 1));
+
+    // Replace linear luck with an exponential tilt that plays nicely with normalization:
+    const luckBoost = Math.exp(K * luckLvl * rareIndex);
+
+    // If base is 0, give it a tiny floor so luck can actually surface it:
+    const baseOrFloor = (base > 0 ? base : EPS);
+
+    const w = baseOrFloor * locMult * baitBoost * penalty * luckBoost;
+    bias[t] = w;
+    sum += w;
+  }
+  // Normalize to probabilities
+  for (const t of TIERS) bias[t] = bias[t] / sum;
+
+  // Optional: peek at the distribution while tuning
+  // console.table(bias);
+
+  return bias;
+}
+
+
+
+    function pickSpecies(tier){ const list = FISH_DB.filter(f=>f.tier===tier); return choice(list) }
+
+
+function applyPrestigeWrapper(fishObj){
+  // Only shadow fish can “become” prestige visually
+  const lvl = state.prestigeLevel|0;
+  if (fishObj.tier !== 'shadow' || lvl <= 0) return fishObj;
+
+  if (Math.random() > prestigeRollChance(lvl)) return fishObj;
+
+  // pick k ∈ [1 .. lvl], uniform
+  const k = 1 + (Math.random()*lvl|0);
+
+  // Value boost (multiplicative)
+  const vMult = Math.pow(PRESTIGE.valueMultPerPlus, k);
+  const boosted = { ...fishObj };
+  boosted.value = Math.round(boosted.value * vMult * 10) / 10;
+
+  // mark for UI
+  boosted._prestige = k;
+  boosted.tierDisplay = 'prestige'; // for styling hook; underlying tier stays 'shadow'
+
+  // optional: XP bonus for this catch
+  boosted._prestigeXpBonus = PRESTIGE.xpBonusPerPlus * k;
+
+
+  return boosted;
+}
+
+
+
+
+ //Generate fish stats (now star-aware)
+
+function genStats(sp, stars = 0){
+  const len0 = rnd(sp.len[0], sp.len[1]);
+  const wt0  = rnd(sp.wt[0], sp.wt[1]);
+
+  const S = starScales(stars);
+  const len = len0 * S.len;
+  const wt  = wt0  * S.wt;
+
+  const avgWt = (sp.wt[0]+sp.wt[1])/2;
+  const sizeFactor = Math.max(.5, wt/avgWt);
+
+  const baseVal = sp.base * TIER_MULT[sp.tier] * sizeFactor;
+  const value   = Math.round((baseVal * S.val) * 10) / 10;
+
+  return { len, wt, value, stars };
+}
+
+
+
+
+    const barEl = document.getElementById('bar')
+    const zoneEl = document.getElementById('zone')
+    const markerEl = document.getElementById('marker')
+    const castBtn = document.getElementById('castBtn')
+    const hookBtn = document.getElementById('hookBtn')
+
+    let mini = { active:false, dir:1, x:0, speed:0.5, speedBase:0.5, jitter:0, zone:{start:0.4, width:0.2}, pending:null, raf:0 }
+
+    function difficultyForTier(t){ const map = { trash:.55, common:.40, uncommon:.32, rare:.22, epic:.16, legendary:.12, artifact:.10, shadow:.06 }; return map[t] || .25 }
+    function speedForRod(){ const base = 0.85; const lvl = state.upgrades.rod; return Math.max(0.35, base - lvl*0.04) }
+
+    function cast(){
+      if(mini.active) return
+      state.stats.casts++
+      const tier = weightedChoice(computeTierWeights())
+      const sp   = pickSpecies(tier)
+      const st   = genStats(sp)
+      mini.pending = { name: sp.name, tier, len: st.len, wt: st.wt, value: st.value };
+      const maybePrestige = window.applyPrestigeWrapper || (x => x);
+      mini.pending = maybePrestige(mini.pending);
+
+
+      const w = difficultyForTier(tier);
+  const start = Math.random() * (1 - w);
+  mini.zone = { start, width: w };
+  zoneEl.style.left  = (start * 100).toFixed(2) + '%';
+  zoneEl.style.width = (w     * 100).toFixed(2) + '%';
+
+      mini.x = Math.random()
+      mini.dir = Math.random() < .5 ? -1 : 1
+      mini.speed = speedForRod()
+      mini.speedBase = mini.speed
+      mini.jitter = Math.random()*Math.PI*2
+
+      mini.active = true
+      castBtn.disabled = true
+      hookBtn.disabled = false
+      startCastBar()
+      drawWaterHint()
+      logMsg('You cast your line… something is nibbling.')
+      save()
+if (window.school) window.school.onCast();
+
+    }
+
+    
+    function hook(){
+  if(!mini.active) return;
+
+  // count the attempt
+  state.stats.hooks++;
+
+  // freeze the bar where it is (if you're using rAF animation)
+  if (typeof stopCastBar === 'function') stopCastBar();
+
+  // Prefer DOM-accurate hit test; fall back to old % math if needed
+  let ok;
+  const domHit = isCastHitDOM();
+  if (domHit === null){
+    // Fallback to your existing calc (mini.x vs zone range)
+    const { start, width } = mini.zone;
+    ok = mini.x >= start && mini.x <= (start + width);
+  } else {
+    ok = domHit;
+  }
+
+  if (ok){
+    // success path
+    catchFish(mini.pending);
+  } else {
+    // miss path (kept exactly like yours)
+    logMsg(`It got away!`);
+    fxCatchFail();
+    onCatchMiss();
+    renderStats();
+    updateBestComboUI();
+    updateFishingLevelUI();
+    updatePrestigeUI();
+    updatePrestigeButton();
+
+  }
+
+  endMini();
+  save();
+}
+
+
+    function endMini(){ mini.active=false; mini.pending=null; cancelAnimationFrame(mini.raf); castBtn.disabled=false; hookBtn.disabled=true }
+
+    // unit helpers
+    const kgToLbs = kg => kg * 2.20462
+    const cmToIn = cm => cm * 0.393701
+
+// pretty length: cm → feet+in if ≥ 12", else inches
+function fmtLen(cm){
+  const inches = cmToIn(cm);
+  if (inches >= 12) {
+    const ft = Math.floor(inches / 12);
+    const inLeft = (inches - ft * 12).toFixed(1);
+    return `${ft} ft ${inLeft} in`;
+  }
+  return `${inches.toFixed(1)} in`;
+}
+
+
+
+
+function catchFish(fish){
+  state.stats.catches++;
+  if (window.school) window.school.onCatchSuccess();
+
+  const prestiged = applyPrestigeWrapper(fish);
+const maybePrestige = window.applyPrestigeWrapper || (x => x);
+mini.pending = maybePrestige(mini.pending);
+
+
+  const augmented = augmentFishNamingAndBoosts(prestiged, {
+    prefixChance: 0.20,
+    titleChance:  0.05
+  });
+
+  // ★ STAR ROLL (no IIFE, safer)
+  {
+    const stars = rollStarsIfAny(augmented);
+    if (stars) {
+      const S = starScales(stars);
+      augmented.stars  = stars;    // for UI
+      augmented._stars = stars;    // (compat)
+      augmented.len   *= S.len;    // boost stats in-place
+      augmented.wt    *= S.wt;
+      augmented.value  = Math.round((augmented.value * S.val) * 10) / 10;
+    }
+  }
+
+
+
+  // keep species log by base species name (not display name)
+  const speciesKey = fish.name;
+  const L = state.log[speciesKey] || { caught:0, bestWt:0, bestLen:0 };
+  L.caught += 1;
+  L.bestWt  = Math.max(L.bestWt,  augmented.wt);  // star-boosted
+  L.bestLen = Math.max(L.bestLen, augmented.len);
+  state.log[speciesKey] = L;
+
+  // push to inventory: include displayName (for UI) but preserve base name + tier, etc.
+  state.inventory.push({
+    id: Date.now()+":"+Math.random().toString(16).slice(2),
+    ...augmented
+  });
+
+  // UI: show the fancy display name if present
+  const shownHTML = formatDisplayNameHTML(augmented);
+  const catchLine = `Caught a ${shownHTML}! — ${fmtLen(augmented.len)}, ${kgToLbs(augmented.wt).toFixed(2)} lbs, worth ${formatMoney(augmented.value)}.`;
+  logMsg(catchLine);
+  stopCastBar();
+
+  onCatchSuccess();
+  if (combo.count > 0) {
+    logMsg(`Combo x${combo.count} — temporary luck +${combo.boost}.`);
+  }
+
+  // 🏆 Trophy system: feed the clean line + value + tier
+  const cleanMsg = catchLine.replace(/^\[[^\]]+\]\s*/, '');
+  window.tryAddTrophy({
+    displayText: cleanMsg,
+    value: formatMoney(augmented.value),
+    tier: augmented.tier
+  });
+function awardFishingXPFromCatch(
+  caught,
+  { wasFirst = false, wasBestWt = false, wasBestLen = false } = {}
+){
+  // Base XP from value
+  const base = caught.value * FISHING_XP.xpPerDollar;
+
+  // Build multiplier
+  const comboCount = window.combo?.count || 0;
+  let mult = 1;
+
+  // combo
+  mult += comboCount * (FISHING_XP.comboBonusPct || 0);
+
+  // tier
+  mult += (FISHING_XP.tierBonusPctByTier?.[caught.tier] || 0);
+
+  // stars
+  const stars = (caught.stars ?? caught._stars ?? 0) | 0;
+  mult += stars * (FISHING_XP.starBonusPctPerStar || 0);
+
+  // named/titled
+  if (caught._mythicMeta?.gotPrefix) mult += (FISHING_XP.nameTitleBonusPct || 0);
+  if (caught._mythicMeta?.gotTitle)  mult += (FISHING_XP.nameTitleBonusPct || 0);
+
+  // prestige XP bonus (e.g., set by applyPrestigeWrapper)
+  if (caught._prestigeXpBonus) {
+    mult *= (1 + caught._prestigeXpBonus);
+  }
+
+  // Final XP with flats for first/record (safe if not configured)
+  let gained = Math.max(1, Math.round(base * mult));
+  if (wasFirst)   gained += (FISHING_XP.firstCatchFlat || 0);
+  if (wasBestWt)  gained += (FISHING_XP.recordFlat || 0);
+  if (wasBestLen) gained += (FISHING_XP.recordFlat || 0);
+
+  addFishingXP(gained);
+}
+
+function addFishingXP(amount){
+  const f = window.fishing;
+  f.xp += amount;
+
+  // multiple level-ups if a massive fish pushes you over
+  while (f.xp >= f.next){
+    f.xp -= f.next;
+    f.level++;
+    f.next = xpNeededForNext(f.level);
+    levelUpFX(f.level);
+    logMsg(`🎉 Level Up! Fishing Level increased to ${f.level}`);
+  }
+
+  saveFishingProgress();
+  updateFishingLevelUI();
+}
+
+
+  renderInventory();
+  renderFishLog();
+  renderStats();
+  updateBestComboUI();
+  renderMoney();
+  updateFishingLevelUI();
+  fxCatchSuccess(augmented);
+  awardFishingXPFromCatch(augmented);
+  updatePrestigeUI();
+  updatePrestigeButton();
+  fxBigFishName(augmented);
+
+  const lbs = kgToLbs(augmented.wt); // you already have this helper
+  const comboCount = (window.combo?.count || 0);
+  fxBarSplash({
+    comboCount,
+    fishLbs: lbs,
+    tier: augmented.tier,
+    valueUSD: augmented.value
+  });
+} // <-- this is the ONLY closing brace for catchFish
+
+
+
+    function sellItem(id){
+      const i = state.inventory.findIndex(x=>x.id===id)
+      if(i>=0){ const v = state.inventory[i].value; state.money += v; state.stats.sold += 1; state.stats.bestValue = Math.max(state.stats.bestValue, v); state.inventory.splice(i,1); renderInventory(); renderMoney(); renderStats(); save()
+renderShop(); updateBestComboUI(); updatePrestigeUI(); }
+    }
+
+    function sellAll(){
+  let total = 0;
+  for(const it of state.inventory) total += it.value;
+
+  // stop if nothing to sell
+  if(total <= 0){
+    logMsg("You have nothing to sell.");
+    return;
+  }
+
+  state.money += total;
+  state.stats.sold += state.inventory.length;
+  state.stats.bestValue = Math.max(state.stats.bestValue, ...state.inventory.map(i=>i.value));
+  state.inventory = [];
+  renderInventory();
+  renderMoney();
+  renderStats();
+  save();
+  logMsg(`Sold all for $${total.toFixed(2)}.`);
+  fxSellAll(total);
+  renderShop();
+  updateBestComboUI();
+  updatePrestigeUI();
+}
+
+
+    let passiveTimer = 0
+    function passiveIntervalMs(){ const lvl = state.upgrades.auto; if(lvl<=0) return 0; return Math.max(6000, 30000 - (lvl-1)*3500) }
+
+    function restartPassiveTimer(){ if(passiveTimer) clearInterval(passiveTimer); const ms = passiveIntervalMs(); if(ms>0){ passiveTimer = setInterval(()=>{ const secure = Math.random() < (0.7 + state.upgrades.rod*0.01); const tier = weightedChoice(computeTierWeights()); const sp = pickSpecies(tier); const st = genStats(sp); if(secure){ catchFish({ name:sp.name, tier:sp.tier, len:st.len, wt:st.wt, value:st.value }); logMsg(`(Auto) Reeled one in.`) } else { logMsg(`(Auto) It slipped the hook.`) } save() }, ms) } }
+
+    function buy(id){
+      const item = SHOP_ITEMS.find(s=>s.id===id); if(!item) return
+      const lvl = item.getLevel(state)
+      if(lvl>=item.max){ logMsg(`${item.name} is maxed.`); return }
+      const price = Math.ceil(item.cost(lvl+1))
+      if(state.money < price){ logMsg(`Not enough money for ${item.name}.`); return }
+      state.money -= price
+      state.upgrades[id] = lvl + 1
+      item.onBuy(state)
+      renderShop(); renderMoney(); renderStats(); populateLocations(); save()
+      logMsg(`Purchased <b>${item.name} Lv.${lvl+1}</b> for $${price}.`)
+    }
+
+    const moneyEl = document.getElementById('money')
+    const invEl   = document.getElementById('inventory')
+    const logEl   = document.getElementById('log')
+    const statsEl = document.getElementById('stats')
+    const shopEl  = document.getElementById('shop')
+    const locEl   = document.getElementById('location')
+    const water   = document.getElementById('water')
+    const wctx    = water.getContext('2d')
+    const fxRoot  = document.getElementById('fx')
+
+
+
+
+
+
+
+   function formatMoney(v){
+  return '$' + v.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+}
+
+    function renderMoney(){ moneyEl.textContent = `Money: ${formatMoney(state.money)}` }
+
+   // Gate (keep this where you define other constants)
+const PRESTIGE_UNLOCK_LEVEL = 25;
+function canPrestige(){ return (window.fishing?.level|0) >= PRESTIGE_UNLOCK_LEVEL; }
+
+
+
+// TOP-LEVEL (not nested) so it’s callable from anywhere
+function renderUnlimiscales(){
+  const el = document.getElementById('unlimiscaleBadge');
+  if (el) el.textContent = `⛁ ${state.unlimiscales|0}`;
+}
+
+// === REPLACE your renderStats with this ===
+function renderStats(){
+  const s = state.stats || {};
+  const u = state.upgrades || { bait:0, rod:0, boat:0, auto:0, luck:0 };
+  const f = window.fishing || { level:1, xp:0, next:0 };
+  const c = window.combo || { count:0, boost:0, best:0 };
+
+  statsEl.innerHTML = `
+    <div class="row"><span>Prestige</span><b>+${state.prestigeLevel|0}</b></div>
+    <div class="row"><span>Unlimiscales</span><b>⛁ ${state.unlimiscales|0}</b></div>
+
+ 
+
+    <div class="row"><span>Casts</span><b>${s.casts|0}</b></div>
+    <div class="row"><span>Hooks</span><b>${s.hooks|0}</b></div>
+    <div class="row"><span>Catches</span><b>${s.catches|0}</b></div>
+    <div class="row"><span>Sold</span><b>${s.sold|0}</b></div>
+    <div class="row"><span>Best Single Sale</span><b>${formatMoney(s.bestValue||0)}</b></div>
+
+    <div class="row"><span>Bait Lv.</span><b>${u.bait|0}</b></div>
+    <div class="row"><span>Rod Lv.</span><b>${u.rod|0}</b></div>
+    <div class="row"><span>Boat Lv.</span><b>${u.boat|0}</b></div>
+    <div class="row"><span>Auto-Reel Lv.</span><b>${u.auto|0}</b></div>
+    <div class="row"><span>Luck Lv.</span><b>${u.luck|0}</b></div>
+
+    <div class="row" id="comboStat">
+      <span>Combo</span>
+      <span><b id="comboVal">x${c.count|0}</b> <small id="comboLuck">(+${c.boost|0})</small></span>
+    </div>
+
+    <div id="statBestCombo" class="stat-row">
+      <span>Best Combo</span>
+      <strong id="statBestComboVal">x${c.best|0}</strong>
+    </div>
+  `;
+
+  // little pulse on combo
+  if (typeof updateComboFX === 'function') updateComboFX();
+  const row = document.getElementById('comboStat');
+  if (row){ row.classList.remove('glow'); row.offsetWidth; row.classList.add('glow'); }
+
+  // keep these synced immediately after prestige / level changes
+  renderUnlimiscales();
+  updatePrestigeButton();
+  ensureFishingLevelUI();      
+     updateFishingLevelUI(); 
+  
+}
+
+
+
+
+    function renderInventory(){
+      if(!state.inventory.length){ invEl.innerHTML = `<div class="help">No fish yet. Cast a line!</div>`; return }
+      invEl.innerHTML = state.inventory.map(it=>{
+        return `<div class="item">
+          <div>
+            <h3>${it.name ? it.name : 'Unknown catch' } <span class="tier ${TIER_COLORS[it.tier]}"><span class="dot" style="background:currentColor"></span>${it.tier}</span></h3>
+            <div class="meta">${fmtLen(it.len)} · ${kgToLbs(it.wt).toFixed(2)} lbs · <b>${formatMoney(it.value)}</b></div>
+          </div>
+          <div>
+            <button class="btn" onclick="window.__sell('${it.id}')">Sell</button>
+          </div>
+        </div>`
+      }).join("")
+    }
+
+    function renderFishLog(){
+      const byTier = {}; for(const t of TIERS) byTier[t] = []
+      for(const sp of FISH_DB){ const L = state.log[sp.name]; if(L) byTier[sp.tier].push({ sp, L }) }
+      const blocks = []
+      for(const t of TIERS){ const list = byTier[t]; if (list.length===0) continue; 
+let html = `
+  <div class="fishlog-header ${TIER_COLORS[t]}">
+    <div>${t}</div>
+    <div class="meta">${list.length} caught species</div>
+  </div>
+`;
+
+
+
+
+
+for(const { sp, L } of list){ html += `<div class="item"><div><h3>${sp.name}</h3><div class="meta">${L.caught} caught · Best ${kgToLbs(L.bestWt).toFixed(2)} lbs / ${fmtLen(L.bestLen)}</div></div><div class="tier ${TIER_COLORS[t]}"><span class="dot" style="background:currentColor"></span>${t}</div></div>` } blocks.push(html) }
+      document.getElementById('fishlog').innerHTML = blocks.join('') || '<div class="help">No species recorded yet — go catch some!</div>'
+    }
+
+    function renderShop(){ shopEl.innerHTML = SHOP_ITEMS.map(item=>{ const lvl = item.getLevel(state); const maxed = lvl>=item.max; const price = Math.ceil(item.cost(lvl+1)); const disabled = (state.money < price) || maxed; return `<div class="item"><div><h3>${item.name} <span class="muted">Lv.${lvl}/${item.max}</span></h3><div class="meta">${item.desc}</div></div><div>${maxed ? `<span class="pill" style="background:rgba(255,255,255,.06)">MAX</span>` : `<button class="btn" ${disabled?'disabled':''} onclick="window.__buy('${item.id}')">Buy <span class="price">${formatMoney(price)}</span></button>`}</div></div>` }).join('') }
+
+    function populateLocations(){ locEl.innerHTML = LOCATIONS.map(loc=>{ const locked = state.upgrades.boat < loc.reqBoatLvl; return `<option value="${loc.id}" ${locked?'disabled':''} ${state.location===loc.id?'selected':''}>${loc.name}${locked?` (Locked)`:''}</option>` }).join('') }
+
+function drawWaterHint(){
+  const W = water.width  = Math.max(1, water.clientWidth  * devicePixelRatio);
+  const H = water.height = Math.max(1, water.clientHeight * devicePixelRatio);
+  const cx = W/2, cy = H/2;
+
+  // Transparent base
+  wctx.setTransform(1,0,0,1,0,0);
+  wctx.clearRect(0,0,W,H);
+
+  // Vignette
+  wctx.save();
+  const vg = wctx.createRadialGradient(cx, H*0.35, 0, cx, H*0.35, Math.max(W,H)*0.8);
+  vg.addColorStop(0, 'rgba(255,255,255,0.06)');
+  vg.addColorStop(1, 'rgba(255,255,255,0)');
+  wctx.fillStyle = vg;
+  wctx.fillRect(0,0,W,H);
+  wctx.restore();
+
+  // Sonar rings (static hint)
+  wctx.save();
+  wctx.globalAlpha = 0.30;
+  wctx.strokeStyle = 'rgba(120,180,255,0.35)';
+  wctx.lineWidth = 2 * (devicePixelRatio || 1);
+  const rings = 10, baseY = H * 0.7;
+  for (let i=0;i<rings;i++){
+    const r = (i+1)* (Math.min(W,H) / 12);
+    wctx.beginPath();
+    wctx.arc(cx, baseY, r, 0, Math.PI*2);
+    wctx.stroke();
+  }
+  wctx.restore();
+}
+
+
+
+
+    function logMsg(html){ const time = new Date().toLocaleTimeString(); const line = document.createElement('div'); line.innerHTML = `<span class="muted">[${time}]</span> ${html}`; logEl.prepend(line) }
+
+    castBtn.addEventListener('click', cast)
+    hookBtn.addEventListener('click', hook)
+    document.getElementById('sellAllBtn').addEventListener('click', sellAll)
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ if(confirm('Reset save?')) reset() })
+    locEl.addEventListener('change', (e)=>{ state.location = e.target.value; save(); logMsg(`Moved to ${LOCATIONS.find(l=>l.id===state.location).name}.`); })
+
+    window.addEventListener('resize', drawWaterHint)
+    window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); if(mini.active){ hook() } else { cast() } } })
+
+    window.__sell = sellItem
+    window.__buy = buy
+
+    // ===== FX helpers =====
+    function centerOfWater(){ const r = water.getBoundingClientRect(); return { x: r.left + r.width/2, y: r.top + r.height/2 } }
+    function mk(elem, cls, styles){
+  const d = document.createElement(elem);
+  if (cls) d.className = cls;
+  // default FX element behavior
+  d.style.position = 'absolute';
+  d.style.pointerEvents = 'none';
+  d.style.willChange = 'transform, opacity';
+  // caller overrides (left/top/etc.)
+  if (styles) Object.assign(d.style, styles);
+  fxRoot.appendChild(d);
+  return d;
+}
+
+// make FX layer truly topmost
+fxRoot.style.position = 'fixed';
+fxRoot.style.inset = '0';
+fxRoot.style.pointerEvents = 'none';
+fxRoot.style.setProperty('z-index', '2116', 'important'); // beats everything
+
+    function removeLater(el, ms=1500){ setTimeout(()=> el.remove(), ms) }
+
+function ripple(color /*, x, y */){
+  const d = mk('div','fx-ripple');       // mk() appends to fxRoot first
+  const host = document.querySelector('.play') || fxRoot;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  host.appendChild(d);                   // move into .play so it's anchored there
+
+  d.style.position = 'absolute';
+  d.style.left = '50%';
+  d.style.top  = '44.1%';
+  d.style.transform = 'translate(-50%, -50%)';
+  d.style.color = color;
+  return d;
+}
+
+function floatText(html /*, x, y */, opts={}){
+  const { size='big', color=null, scale=1 } = opts;
+  const d = mk('div', 'fx-float '+size); // mk() appends to fxRoot first
+  const host = document.querySelector('.play') || fxRoot;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  host.appendChild(d);                   // move into .play so it's anchored there
+
+  d.style.position = 'absolute';
+  d.style.left = '50%';
+  d.style.top  = '60%';
+  d.style.transform = 'translate(-50%, -50%)';
+  if(color) d.style.color = color;
+  if(size==='big'){ d.style.fontSize = (20*scale)+'px'; }
+  if(size==='small'){ d.style.fontSize = (14*scale)+'px'; }
+  d.innerHTML = html;
+  removeLater(d, 1200);
+  return d;
+}
+
+
+
+
+    function cssTierColor(tier){
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--tier-'+tier);
+      return (v && v.trim()) || '#9fb4db';
+    }
+
+    function rarityScale(tier){
+      const idx = TIERS.indexOf(tier); // 0..7
+      return 1 + idx*0.08; // gentle scale-up for rarer fish
+    }
+
+
+function fxBigFishName(fish){
+  const parent =
+    document.querySelector('.play') ||
+    document.getElementById('canvas') ||
+    document.getElementById('fx') ||
+    document.body;
+
+  if (parent && getComputedStyle(parent).position === 'static'){
+    parent.style.position = 'relative';
+  }
+
+  // sub-line
+  const sub = document.createElement('div');
+  sub.className = 'fx-bigname-sub';
+  sub.textContent = 'You caught a';
+  parent.appendChild(sub);
+
+  // build the main name line exactly like log/trophies
+  const div = document.createElement('div');
+  div.className = 'fx-bigname';
+
+  // base fish name
+  let fishName = fish.displayName || fish.name || fish.species || 'Fish';
+  let html = '';
+
+  if (fish.tier === 'shadow' && fish._prestige){
+    // prestige shadow → wrap with prestige styles
+    html = `
+      <span class="prestige-wrap">
+        <span class="prestige-name">${fishName}</span>
+        <span class="prestige-badge">+${fish._prestige}</span>
+      </span>
+    `;
+  } else if (fish.tier === 'shadow'){
+    // normal shadow
+    html = `<span class="t-shadow">${fishName}</span>`;
+  } else {
+    // normal tier (use tier class for color/glow)
+    html = `<span class="t-${fish.tier}">${fishName}</span>`;
+  }
+
+  div.innerHTML = html;
+  parent.appendChild(div);
+
+  // auto-remove like before
+  setTimeout(() => {
+    sub.remove();
+    div.remove();
+  }, 2200);
+}
+
+
+
+    function fxCatchSuccess(fish){
+      const c = centerOfWater();
+      const color = cssTierColor(fish.tier);
+      ripple(color, c.x, c.y);
+      const name = `<span class="${TIER_COLORS[fish.tier]}"><b>${fish.name}</b></span>`;
+      floatText(`+ Caught ${name}!`, c.x, c.y - 10, { size:'big', color, scale: rarityScale(fish.tier) });
+    }
+
+    function fxCatchFail(){
+      const c = centerOfWater();
+      const color = '#ff6b6b';
+      ripple(color, c.x, c.y);
+      barEl.classList.add('shake');
+      setTimeout(()=> barEl.classList.remove('shake'), 450);
+      floatText('Missed!', c.x, c.y - 10, { size:'small', color });
+if (window.school) window.school.onCatchFail();
+
+    }
+
+    function fxSellAll(total){
+const parent =
+    document.querySelector('.play') ||
+    document.getElementById('canvas') ||
+    (typeof fxRoot !== 'undefined' && fxRoot) ||
+    document.body;
+
+  // Ensure the container can anchor absolute children
+  if (parent && getComputedStyle(parent).position === 'static'){
+    parent.style.position = 'relative';
+    if (getComputedStyle(parent).overflow === 'visible') parent.style.overflow = 'hidden';
+  }
+
+  // Pulse the money counter
+  updateFishingLevelUI();
+  moneyEl.classList.add('pulse'); 
+  setTimeout(()=> moneyEl.classList.remove('pulse'), 700);
+
+  // Floating coin text already here...
+  const m = moneyEl.getBoundingClientRect();
+  floatText('+' + formatMoney(total), m.left + m.width/2, m.top - 6, { size:'big', color:'#ffca2b', scale:1.05 });
+
+  // === Big Sell All Popup ===
+  const popup = document.createElement('div');
+  popup.className = 'sellall-popup';
+  popup.textContent = `Sold All for ${formatMoney(total)}!`;
+  parent.appendChild(popup);
+
+  // animate + remove
+  setTimeout(()=> popup.classList.add('show'), 50);
+  setTimeout(()=> popup.classList.remove('show'), 1800);
+  setTimeout(()=> popup.remove(), 2300);
+
+  // Coin shower
+  
+  
+coinSellFX({ fromEl: document.getElementById('sellAllBtn'), count: 30 });
+
+
+}
+
+
+// ========== TROPHIES (Top 10 by Value) ==========
+(function(){
+  const TROPHY_KEY = 'unlimifish_trophies_v1';
+
+  function loadTrophies(){
+    try { return JSON.parse(localStorage.getItem(TROPHY_KEY) || '[]'); }
+    catch(e){ return []; }
+  }
+  function saveTrophies(list){
+    localStorage.setItem(TROPHY_KEY, JSON.stringify(list));
+  }
+
+  // Parse possibly-formatted money strings like "$1,234.56" → 1234.56
+  function toNumber(val){
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string'){
+      const n = Number(val.replace(/[^0-9.-]/g, ''));
+      return isNaN(n) ? NaN : n;
+    }
+    return NaN;
+  }
+
+  function fmtMoney(n){
+  const num = Number(n);
+  if (typeof window.formatMoney === 'function') return window.formatMoney(num);
+  if (!Number.isFinite(num)) return '$0';
+  return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+
+  // PUBLIC: call this after a successful catch
+  // params:
+  //   displayText: string (the full log message text describing the catch, without timestamp)
+  //   value: number|string (the fish value — numeric or formatted)
+  //   tier: string (optional; for coloring)
+  //   when: number|Date (optional timestamp)
+  window.tryAddTrophy = function({ displayText, value, tier, when }){
+    const v = toNumber(value);
+    if (isNaN(v)) return; // nothing to rank
+
+    const entry = {
+      name: String(displayText || '').trim(),
+      value: v,
+      tier: tier || null,
+      when: when ? +new Date(when) : Date.now()
+    };
+
+    // Load, scrub any prior bad entries, then add/sort/trim
+    let list = loadTrophies().filter(t => !isNaN(toNumber(t.value)));
+    list.push(entry);
+    list.sort((a,b)=> (toNumber(b.value) - toNumber(a.value)) || (a.when - b.when));
+    list = list.slice(0,10);
+    saveTrophies(list);
+    renderTrophies(list);
+  };
+
+  function renderTrophies(list){
+    list = (list || loadTrophies()).filter(t => !isNaN(toNumber(t.value)));
+    const ul = document.getElementById('trophiesList');
+    if (!ul) return;
+    ul.innerHTML = '';
+    list.forEach((t, i)=>{
+      const li = document.createElement('li');
+
+      // Optional rarity class if you have tier → class mapping
+      if (t.tier && window.tierClassName){
+        const cls = window.tierClassName(t.tier);
+        if (cls) li.classList.add(cls);
+      }
+
+      li.innerHTML = `
+        <div class="trophies-rank">${i+1}</div>
+        <div class="trophies-name">${t.name}</div>
+        <div class="trophies-value">${fmtMoney(t.value)}</div>
+      `;
+      ul.appendChild(li);
+    });
+  }
+
+// Public: clear trophies immediately (no confirm dialog)
+window.resetTrophies = function(){
+  localStorage.removeItem(TROPHY_KEY); // same key used by the Reset button
+  renderTrophies([]);                   // immediate UI update
+};
+
+
+  // Clear / reset button
+  function wireTrophiesUI(){
+    const btn = document.getElementById('clearTrophiesBtn');
+    if (btn){
+      btn.addEventListener('click', ()=>{
+        if (confirm('Reset Trophy Catches (Top 10)?')){
+          localStorage.removeItem(TROPHY_KEY);
+          renderTrophies([]);
+        }
+      });
+    }
+    // One-time migration: scrub any previously-saved NaNs
+    const cleaned = loadTrophies().filter(t => !isNaN(toNumber(t.value)));
+    saveTrophies(cleaned);
+    renderTrophies(cleaned); // initial draw
+  }
+
+  // start once DOM is ready
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wireTrophiesUI);
+  } else {
+    wireTrophiesUI();
+  }
+})();
+
+
+
+
+// ===== SurfaceSwimmer: swims continuously, trail fades; respawns on cast; hides on catch =====
+
+(function(){
+  const pr = Math.min(window.devicePixelRatio || 1, 2);
+  const waterEl = document.getElementById('water');
+  if (!waterEl) return;
+
+  // Position the overlay canvas EXACTLY over #water inside its card
+  const card = waterEl.closest('main.card') || waterEl.parentElement;
+  if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+
+  const canvas = document.createElement('canvas');
+  Object.assign(canvas.style, { position:'absolute', pointerEvents:'none', zIndex: 6 });
+  card.appendChild(canvas);
+  const ctx = canvas.getContext('2d', { alpha:true });
+
+  function sizeToWater(){
+    const cr = card.getBoundingClientRect();
+    const wr = waterEl.getBoundingClientRect();
+    const left = wr.left - cr.left;
+    const top  = wr.top  - cr.top;
+
+    canvas.style.left   = left + 'px';
+    canvas.style.top    = top  + 'px';
+    canvas.style.width  = wr.width + 'px';
+    canvas.style.height = wr.height + 'px';
+
+    canvas.width  = Math.max(1, Math.round(wr.width  * pr));
+    canvas.height = Math.max(1, Math.round(wr.height * pr));
+  }
+  sizeToWater();
+
+  // Track layout changes so bounds never drift
+  const ro = new ResizeObserver(sizeToWater);
+  ro.observe(card);
+  ro.observe(waterEl);
+  window.addEventListener('resize', sizeToWater, { passive:true });
+  window.addEventListener('scroll', sizeToWater, { passive:true });
+
+  // --- School state ---
+  const FISH_COUNT = 7;
+  const fishes = [];
+
+  function makeFish(){
+    return {
+      x: Math.random()*canvas.width,
+      y: Math.random()*canvas.height,
+      ang: Math.random()*Math.PI*2,
+      base: (0.25 + Math.random()*0.7)*pr,
+      speed: 0,
+      t: 0,
+      alive: true,
+      panic: 0,         // seconds remaining of panic mode
+      hideUntil: 0      // timestamp; if now < hideUntil, don’t draw
+    };
+  }
+  function respawnFish(f){
+    f.x = Math.random()*canvas.width;
+    f.y = Math.random()*canvas.height;
+    f.ang = Math.random()*Math.PI*2;
+    f.speed = f.base;
+    f.t = 0;
+    f.alive = true;
+    f.panic = 0;
+    f.hideUntil = 0;
+  }
+
+  for (let i=0;i<FISH_COUNT;i++) fishes.push(makeFish());
+
+  function clearTrail(){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+
+  // Public hooks
+  window.school = {
+    resize: () => { sizeToWater(); clearTrail(); },
+    onCast: () => {
+      // Scatter away from the water center
+      const wr = { w: canvas.width, h: canvas.height };
+      const cx = wr.w * 0.5, cy = wr.h * 0.5;
+      for (const f of fishes){
+        if (performance.now() < f.hideUntil) continue;
+        const dx = f.x - cx, dy = f.y - cy;
+        const desired = Math.atan2(dy, dx);
+        f.ang = desired + (Math.random()-0.5)*0.6;
+        f.panic = 0.8 + Math.random()*0.7;           // panic ~0.8–1.5s
+        f.speed = f.base * (1.6 + Math.random()*0.7);
+      }
+    },
+    onCatchFail: () => {
+      // Brief spook (small nudge)
+      for (const f of fishes){
+        if (performance.now() < f.hideUntil) continue;
+        f.panic = Math.max(f.panic, 0.35);
+        f.speed = Math.max(f.speed, f.base*1.4);
+        f.ang += (Math.random()-0.5)*0.8;
+      }
+    },
+    onCatchSuccess: () => {
+      // Hide everyone, then stagger respawns
+      const now = performance.now();
+      fishes.forEach((f,i) => {
+        f.hideUntil = now + 400 + i*140 + Math.random()*500; // 0.4s+ stagger
+      });
+    }
+  };
+
+  // Animation loop
+  let last = performance.now();
+  function tick(now){
+    const dt = Math.min(0.05, (now - last)/1000); last = now;
+
+    // fade trails
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.globalAlpha = 0.06; // raise to fade faster
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.restore();
+
+    for (const f of fishes){
+      // hidden?
+      if (now < f.hideUntil) continue;
+      // if we just came back from hiding, respawn gently
+      if (f.hideUntil && now >= f.hideUntil){
+        respawnFish(f);
+        f.hideUntil = 0;
+      }
+
+      f.t += dt;
+
+      // target wander (skip while panicking)
+      if (f.panic <= 0){
+        if (!f.target || now - f.target.changed > f.target.ttl){
+          f.target = {
+            x:(Math.random()*canvas.width*0.8)+canvas.width*0.1,
+            y:(Math.random()*canvas.height*0.8)+canvas.height*0.1,
+            changed: now,
+            ttl: 2200 + Math.random()*3000
+          };
+        }
+        const dx = f.target.x - f.x;
+        const dy = f.target.y - f.y;
+        const desired = Math.atan2(dy, dx);
+
+        let dAng = desired - f.ang;
+        while (dAng > Math.PI)  dAng -= 2*Math.PI;
+        while (dAng < -Math.PI) dAng += 2*Math.PI;
+
+        const maxTurn = 1.6 * dt;
+        f.ang += Math.max(-maxTurn, Math.min(maxTurn, dAng)) + (Math.random()-0.5)*0.04;
+      } else {
+        // panic decays over time
+        f.panic = Math.max(0, f.panic - dt);
+        f.ang += (Math.random()-0.5)*0.12; // jitter while panicking
+      }
+
+      // pulse speed
+      const targetSpeed = (f.panic>0 ? f.base*1.7 : f.base) * (1.0 + 0.12*Math.sin(f.t*1.35));
+      f.speed += (targetSpeed - f.speed)*0.09;
+
+      f.x += Math.cos(f.ang)*f.speed;
+      f.y += Math.sin(f.ang)*f.speed;
+
+      // soft bounds within canvas (== your play area)
+      const margin = 20*pr;
+      if (f.x < margin || f.x > canvas.width - margin)  f.ang = Math.PI - f.ang;
+      if (f.y < margin || f.y > canvas.height - margin) f.ang = -f.ang;
+
+      // draw glow dot
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.shadowBlur = 10*pr;
+      ctx.shadowColor = 'rgba(255,255,255,0.85)';
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 2*pr, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+
+
+    function fullRender(){
+  // 1) Make sure all dynamic elements exist
+  ensurePrestigeButton();
+  updatePrestigeUI?.();
+  updateUnlimiscalesUI?.();
+  ensureBestComboRow();
+  ensureFishingLevelUI();
+  ensureComboHUD();
+
+  // 2) Re-render all data-driven panels
+  renderMoney();
+  renderStats();
+  renderInventory();
+  renderFishLog();
+  renderShop();
+  populateLocations();
+  drawWaterHint();
+
+  // 3) Update all “live” widgets/text that depend on state
+  updateUnlimiscalesUI();
+  updatePrestigeUI();
+  updatePrestigeButton();
+  updateFishingLevelUI();
+  updateBestComboUI();
+  updateComboUI();     // keeps the sidebar numbers sane
+  updateComboHUD();    // keeps the floating HUD in sync
+  updateComboFX();     // resets/clears the bar glow if needed
+
+  // 4) Timers/loops that drive the game feel
+  restartPassiveTimer?.();
+}
+
+    fullRender()
+
+  })()
+  </script>
+<script>
+(function(){
+  // small helpers
+  const lerp = (a,b,t)=> a + (b-a)*t;
+  const clamp = (v,min,max)=> Math.max(min, Math.min(max, v));
+  const ease = t => t<0 ? 0 : t>1 ? 1 : t*t*(3-2*t); // smoothstep-ish
+  const randRange = (a,b)=> a + Math.random()*(b-a);
+
+  const WaterFX = {
+    canvas:null, ctx:null, dpr:1, running:true,
+    container:null, tile1:null, tile2:null, prev:0, _pings:[], _lastPing:0,
+    sonarCenter: { usePx:false, fx:0.5, fy:0.5, px:0, py:0 },
+
+    // biolum pool
+    _bio: [],              // {x,y,vx,vy,r,alpha,target,twinkle,phase}
+    _bioLastSize: {w:0,h:0},
+
+    // evolving state (clean & calm)
+    _rngSeed: Math.floor(Math.random()*1e9),
+    state: {
+  hue: 205,
+  sat: 60,
+  lightTop: 14,
+  lightBot: 8,
+
+  // static base rotation (tiny)
+  rot1: 0.04,
+  rot2: -0.028,
+
+  // dynamic scalars
+  dayPhase: 0,
+  tidePhase: 0,
+  wind: 0,
+  biolum: 0,
+
+  // derived per-frame
+  _alpha1: .6,
+  _alpha2: .55,
+  _alphaC: .3,
+  _sonarHue: 215,
+
+  // overlay state (make sure commas are correct!)
+  _overlayDeg: 0,
+  _overlayAlpha: 0
+},
+_rafId: 0,
+_janitorAt: 0,
+
+
+// after the closing brace of state, add the overlay config:
+hueOverlay: {
+  enabled: true,
+  periodSec: 5400,
+  alpha: 0.16,
+  blend: 'color',
+  minHue: 150,
+  maxHue: 215
+},
+bioSpeed: 0.35,
+
+setBioSpeed(v){ this.bioSpeed = Math.max(0, v); },
+
+    start({container} = {}){
+      // pick a container or fall back to <body>
+      this.container = container ||
+        document.querySelector('#fishingWindow, .fishing-window, #gameWindow, #game, #scene') ||
+        document.body;
+
+      // reuse existing #waterFX if present, else create it
+      this.canvas = document.getElementById('waterFX') || Object.assign(document.createElement('canvas'), { id:'waterFX' });
+      this.ctx = this.canvas.getContext('2d', { alpha:false }); // opaque (fast, behind UI)
+      this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      if (!this.canvas.parentElement) this.container.prepend(this.canvas);
+
+      // size & scale
+      const resize = () => {
+        const r = this.container.getBoundingClientRect();
+        this.canvas.style.width  = r.width  + 'px';
+        this.canvas.style.height = r.height + 'px';
+        this.canvas.width  = Math.max(1, (r.width  * this.dpr)|0);
+        this.canvas.height = Math.max(1, (r.height * this.dpr)|0);
+        // re-evaluate biolum pool density on size changes
+        this._bioLastSize = { w:this.canvas.width, h:this.canvas.height };
+        this._ensureBio();
+      };
+      window.addEventListener('resize', resize);
+      resize();
+
+      // build lightweight repeatable tiles (fast)
+      this._buildTiles();
+
+      // power management: pause when tab hidden
+      document.addEventListener('visibilitychange', () => {
+        this.running = !document.hidden;
+        if (this.running && !this._rafId) {
+this.prev = 0;
+this._rafId = requestAnimationFrame(this._loop.bind(this));
+}
+      });
+
+      this._lastPing = performance.now();
+      this._rafId = requestAnimationFrame(this._loop.bind(this));
+    },
+
+    // API: move sonar to exact pixels
+    setSonarPixels(x,y){ this.sonarCenter = {usePx:true, px:x, py:y}; },
+
+    // API: move sonar by fractions of the window (0..1)
+    setSonarFraction(fx,fy){ this.sonarCenter = {usePx:false, fx, fy}; },
+
+    _buildTiles(){
+      // tile1: soft wavy lines
+      const T = this.tile1 = document.createElement('canvas');
+      T.width = T.height = 256;
+      const c = T.getContext('2d');
+      c.fillStyle = '#0b223a'; c.fillRect(0,0,T.width,T.height);
+      c.globalAlpha = 0.85;
+      for (let y=-20; y<T.height+20; y+=12){
+        c.beginPath();
+        for (let x=-40; x<T.width+40; x+=4){
+          const v = Math.sin((x*0.06) + Math.cos(y*0.08)*2) * 3
+                   + Math.sin((x*0.015 + y*0.04)) * 2;
+          c.lineTo(x, y+v);
+        }
+        c.strokeStyle = 'rgba(20,120,200,0.17)';
+        c.lineWidth = 1.2;
+        c.stroke();
+      }
+
+      // tile2: caustic speckles (light flecks)
+      const T2 = this.tile2 = document.createElement('canvas');
+      T2.width = T2.height = 256;
+      const c2 = T2.getContext('2d');
+      c2.fillStyle = '#0b223a'; c2.fillRect(0,0,256,256);
+      for (let i=0;i<900;i++){
+        const x=Math.random()*256, y=Math.random()*256, r=Math.random()*1.6+0.2;
+        const g = c2.createRadialGradient(x,y,0,x,y,r*2.8);
+        g.addColorStop(0,'rgba(180,220,255,0.18)');
+        g.addColorStop(1,'rgba(180,220,255,0)');
+        c2.fillStyle = g; c2.beginPath(); c2.arc(x,y,r*2.8,0,Math.PI*2); c2.fill();
+      }
+    },
+
+    _ensureBio(){
+      // target density scales with area and biolum intensity, but has a floor at nightfall
+      const W = this.canvas.width, H = this.canvas.height;
+      const area = W*H;
+      // base night population for 1080p ≈ 90–120
+      const base = Math.max(30, Math.floor(area / (1920*1080) * 110));
+      // populate a bit even in day so you can notice gentle fade in
+      const s = this.state || { biolum: 0.0 };
+      const nightFactor = 0.25 + 0.75 * s.biolum; // 0.25..1
+      const target = Math.floor(base * nightFactor);
+      const hardCap = Math.max(50, Math.floor(area / (1920*1080) * 220));
+
+      // grow/shrink pool
+      while (this._bio.length < target){
+        this._bio.push(this._newBioParticle(W,H));
+      }
+      if (this._bio.length > target){
+        this._bio.length = target;
+      }
+      if (this._bio.length > hardCap) this._bio.length = hardCap;
+    },
+
+    _newBioParticle(W,H){
+      // place randomly, tiny slow drift; twinkle is a low-freq phase
+      const r = randRange(6, 18);
+      const speed = randRange(2e-3, 9e-3); // px per ms (very slow)
+      const dir = Math.random()*Math.PI*2;
+      const vx = Math.cos(dir)*speed, vy = Math.sin(dir)*speed;
+      return {
+        x: Math.random()*W,
+        y: Math.random()*H,
+        vx, vy,
+        r,
+        alpha: 0,                // current visible alpha (smoothed)
+        target: randRange(0.15, 0.5), // base brightness to aim for
+        twinkle: randRange(0.7, 1.15), // per-particle twinkle strength
+        phase: Math.random()*Math.PI*2 // for sin twinkle
+      };
+    },
+
+_janitor(now){
+  // run every ~30s
+  if (now - this._janitorAt < 30000) return;
+  this._janitorAt = now;
+
+  const W = this.canvas.width, H = this.canvas.height;
+  // remove any weird/NaN particles (rare but safe)
+  this._bio = this._bio.filter(p =>
+    p && isFinite(p.x) && isFinite(p.y) && isFinite(p.vx) && isFinite(p.vy)
+  );
+
+  // clamp again to current target
+  this._ensureBio();
+
+  // optional: softly re-seed any particles stuck off-canvas (just in case)
+  for (let i=0;i<this._bio.length;i++){
+    const p = this._bio[i];
+    if (p.x < -64 || p.x > W+64 || p.y < -64 || p.y > H+64){
+      // move back inside edges
+      p.x = Math.random()*W;
+      p.y = Math.random()*H;
+    }
+  }
+},
+
+
+    _evolve(now){
+      const s = this.state;
+      const t = (now||0)*0.001;
+      const seed01 = ((this._rngSeed % 1000) / 1000);
+
+      // — Day/Night (period 180–240s, randomized per tab) —
+      const dayPeriod = 180 + Math.floor(seed01 * 60);  // seconds
+      const dayT = (t / dayPeriod) % 1;
+      s.dayPhase = dayT; // 0..1
+      // night factor: 0 at noon, 1 at midnight
+      const night = 1 - Math.cos(dayT * Math.PI * 2) * 0.5 - 0.5; // 0..1
+      const nightSoft = ease(night);
+      // Biolum stronger; bias up a bit so it's clearly visible at night
+      s.biolum = lerp(s.biolum, Math.min(1, nightSoft * 1.1), 0.03);
+
+      // — Seasonal hue drift (very slow) —
+      const seasonT = t * 0.005; // super slow
+      const hueDrift = Math.sin(seasonT) * 8; // ±8°
+      s.hue = 205 + hueDrift;
+
+      // adjust brightness with day/night
+      s.lightTop = lerp(15, 11, nightSoft);
+      s.lightBot = lerp(9, 7, nightSoft);
+
+      // — Tides (modulate alphas a bit) —
+      const tidePeriod = 48 + Math.floor(seed01 * 18); // 48–66s
+      s.tidePhase = (t / tidePeriod) % 1;
+      const tide = 0.65 + 0.35 * Math.sin(s.tidePhase * Math.PI * 2);
+
+      // — Wind gusts (small, frequent, softened) —
+      const gust = (Math.sin(t*0.7) * Math.sin(t*0.23) * Math.sin(t*0.11) + 1) * 0.5; // 0..1
+      s.wind = lerp(s.wind, gust, 0.04);
+
+      // Update alphas (gentle)
+      s._alpha1 = clamp(0.46 + 0.12*tide + 0.08*s.wind, 0.2, 0.72);
+      s._alpha2 = clamp(0.44 + 0.12*tide + 0.08*s.wind, 0.2, 0.68);
+      s._alphaC = clamp(0.24 + 0.10*tide + 0.20*nightSoft, 0.16, 0.48);
+
+      // sonar hue shifts with water hue
+      s._sonarHue = s.hue + 10;
+
+      // cache a calm oscillation phase for each layer (no net crawl)
+      s._phase1x = Math.sin(t * 2*Math.PI * 0.030);
+      s._phase1y = Math.cos(t * 2*Math.PI * 0.021);
+      s._phase2x = Math.cos(t * 2*Math.PI * 0.024 + 1.2);
+      s._phase2y = Math.sin(t * 2*Math.PI * 0.017 + 0.7);
+      s._phaseCx = Math.sin(t * 2*Math.PI * 0.018 + 2.1);
+      s._phaseCy = Math.sin(t * 2*Math.PI * 0.015 + 3.4);
+
+      // amplitude gently breathes with tide/wind (subtle)
+      s._A1 = 26 * (0.95 + 0.12*tide + 0.08*s.wind);
+      s._A2 = 34 * (0.95 + 0.12*tide + 0.08*s.wind);
+      s._AC = 20 * (0.95 + 0.10*tide + 0.08*s.wind);
+
+      // tiny rotation breathing (very subtle, to avoid static feel)
+      s._rot1 = s.rot1 + 0.004 * Math.sin(t * 0.15);
+      s._rot2 = s.rot2 - 0.003 * Math.cos(t * 0.11);
+
+      // keep bio pool sized to current intensity/area
+      this._ensureBio();
+      this._janitor(now);
+// — Ultra-slow hue overlay drift through sea palette —
+// Sweeps from murky green → steel blue → tropical teal over hours.
+{
+  const hov = this.hueOverlay;
+  if (hov && hov.enabled) {
+    const T = Math.max(1, hov.periodSec);            // seconds
+    const phase = (t / T) * Math.PI * 2;             // 0..2π
+    const mid = (hov.minHue + hov.maxHue) * 0.5;
+    const amp = (hov.maxHue - hov.minHue) * 0.5;
+    // Smooth sweep across the band
+    s._overlayDeg = mid + Math.sin(phase) * amp;
+    // Slightly stronger at night so it reads as a mood shift
+    s._overlayAlpha = (hov.alpha ?? 0.12) * (0.8 + 0.4 * nightSoft);
+  } else {
+    s._overlayAlpha = 0;
+  }
+}
+
+
+    },
+
+    _loop(now){
+      if (!this.running) return;
+      const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height, dpr = this.dpr;
+
+      // evolve the ocean state
+      this._evolve(now);
+      const s = this.state;
+
+      // base gradient (deep water feel, dynamic HSL)
+      const g = ctx.createLinearGradient(0,0,0,H);
+      const top = `hsl(${s.hue}, ${s.sat}%, ${s.lightTop}%)`;
+      const bot = `hsl(${s.hue}, ${s.sat}%, ${s.lightBot}%)`;
+      ctx.fillStyle = g;
+      g.addColorStop(0, top);
+      g.addColorStop(1, bot);
+      ctx.fillRect(0,0,W,H);
+
+      // layer 1: gentle oscillation (no net drift)
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = s._alpha1;
+      ctx.fillStyle = ctx.createPattern(this.tile1,'repeat');
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.translate(s._phase1x * s._A1, s._phase1y * (s._A1 * 0.55));
+      ctx.rotate(s._rot1);
+      ctx.fillRect(-256,-256,W+512,H+512);
+      ctx.restore();
+
+// Very-slow color wash overlay
+if (this.hueOverlay?.enabled && s._overlayAlpha > 0) {
+  ctx.save();
+  ctx.globalCompositeOperation = this.hueOverlay.blend || 'hue';
+  ctx.globalAlpha = s._overlayAlpha;
+  // Use mid-lightness, full saturation to transfer hue cleanly
+  ctx.fillStyle = `hsl(${s._overlayDeg}, 100%, 50%)`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+
+      // layer 2: counter oscillation for interference
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = s._alpha2;
+      ctx.fillStyle = ctx.createPattern(this.tile1,'repeat');
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.translate(s._phase2x * s._A2, s._phase2y * (s._A2 * 0.6));
+      ctx.rotate(s._rot2);
+      ctx.fillRect(-256,-256,W+512,H+512);
+      ctx.restore();
+
+      // caustic flecks drift (brighter at night via _alphaC)
+      ctx.save();
+      ctx.globalAlpha = s._alphaC;
+      ctx.fillStyle = ctx.createPattern(this.tile2,'repeat');
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.translate(s._phaseCx * s._AC, s._phaseCy * (s._AC * 0.7));
+      ctx.fillRect(-256,-256,W+512,H+512);
+      ctx.restore();
+
+      // soft gloss vignette (dim a bit at night)
+      ctx.save();
+      const w = W/dpr, h = H/dpr;
+      ctx.scale(dpr,dpr);
+      const vg = ctx.createRadialGradient(w*0.5,h*0.4,0, w*0.5,h*0.4, Math.max(w,h)*0.9);
+      const gloss = 0.12 * (1 - s.biolum*0.5); // less gloss at deep night
+      vg.addColorStop(0,`rgba(255,255,255,${gloss})`);
+      vg.addColorStop(0.6,'rgba(255,255,255,0.03)');
+      vg.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle = vg; ctx.fillRect(0,0,w,h);
+      ctx.restore();
+
+      // bioluminescence — persistent, drifting, and clearly visible at night
+      this._drawBiolum(now);
+
+      // sonar (constant, hue/cadence gently influenced by wind only)
+      this._drawSonar(now);
+
+      this._rafId = requestAnimationFrame(this._loop.bind(this));
+    },
+
+    _drawBiolum(now){
+      const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height, dpr = this.dpr;
+      const s = this.state;
+
+      if (this._bio.length === 0) return;
+
+      // global blend for glows
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.scale(1,1);
+
+      // strengthen overall at night; clamp minimum so it's still noticeable
+      const nightBoost = clamp(0.25 + s.biolum*0.9, 0.25, 1.15); // 0.25..1.15
+
+      // subtle sheet (helps unify)
+      if (s.biolum > 0.08){
+        ctx.globalAlpha = 0.08 * nightBoost;
+        const sheet = ctx.createRadialGradient(W*0.48, H*0.58, 0, W*0.48, H*0.58, Math.max(W,H)*0.85);
+        sheet.addColorStop(0, `hsla(${s.hue+30}, 95%, 68%, 0.45)`);
+        sheet.addColorStop(1, `hsla(${s.hue+30}, 95%, 68%, 0)`);
+        ctx.fillStyle = sheet;
+        ctx.fillRect(0,0,W,H);
+      }
+
+      // flow field params (very slow)
+      const t = now * 0.00015;
+      const flowScale = 0.002; // field frequency
+      const flowMag   = (0.018 + 0.012*s.wind) * (this.bioSpeed || 1);
+
+      // update & render particles
+      for (let i=0;i<this._bio.length;i++){
+        const p = this._bio[i];
+
+        // flow vector (curl-ish feel from crossed sines)
+        const fx = Math.sin((p.y + t*800) * flowScale) + Math.cos((p.x - t*600) * flowScale*0.9);
+        const fy = Math.cos((p.x - t*700) * flowScale*1.1) - Math.sin((p.y + t*500) * flowScale*0.8);
+        const vx = p.vx + fx*flowMag;
+        const vy = p.vy + fy*flowMag;
+
+        const speedScale = (this.bioSpeed || 1);
+        p.x += vx * (16.6 * speedScale); // scale velocities to ~per-frame at 60fps
+        p.y += vy * (16.6 * speedScale);
+
+        // wrap around edges
+        if (p.x < -32) p.x += (W+64);
+        if (p.x > W+32) p.x -= (W+64);
+        if (p.y < -32) p.y += (H+64);
+        if (p.y > H+32) p.y -= (H+64);
+
+        // twinkle target varies slowly with time (very low frequency)
+        p.phase += 0.005 + Math.random()*0.002;
+        const tw = (Math.sin(p.phase) * 0.5 + 0.5); // 0..1
+        const twinkle = 0.65 + 0.35*tw;             // 0.65..1.0
+        const targetAlpha = p.target * twinkle * nightBoost * (0.6 + 0.5*s.biolum); // scales with night
+
+        // smooth alpha toward target (no flicker)
+        p.alpha = lerp(p.alpha, targetAlpha, 0.05);
+
+        // size breathes a touch at night
+        const size = p.r * (0.85 + 0.25*s.biolum);
+
+        // draw
+        const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size);
+        // core is brighter/greener than edges
+        grd.addColorStop(0,  `hsla(${s.hue+35}, 100%, 72%, ${0.85*p.alpha})`);
+        grd.addColorStop(0.4,`hsla(${s.hue+30}, 100%, 62%, ${0.35*p.alpha})`);
+        grd.addColorStop(1,  `hsla(${s.hue+30}, 100%, 62%, 0)`);
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    },
+
+    _drawSonar(now){
+      const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height, dpr = this.dpr;
+      const w = W/dpr, h = H/dpr;
+
+      // ping timing (very slight wind coupling, no storms)
+      const s = this.state || {wind:0};
+      const baseEvery = 2500;
+      const pingEvery = Math.max(1900, baseEvery * (1 - 0.15*s.wind)); // never faster than ~1.9s
+
+      if (now - this._lastPing > pingEvery){
+        this._lastPing = now;
+        this._pings.push({t:now});
+        // clean out very old pings
+        const cutoff = now - pingEvery*4;
+        this._pings = this._pings.filter(p => p.t >= cutoff).slice(-8);
+      }
+
+      // center
+      const cx = this.sonarCenter.usePx ? this.sonarCenter.px : w * this.sonarCenter.fx;
+      const cy = this.sonarCenter.usePx ? this.sonarCenter.py : h * this.sonarCenter.fy;
+
+      ctx.save();
+      ctx.scale(dpr,dpr);
+      for (const p of this._pings){
+        const age = (now - p.t) / pingEvery;           // 0..∞
+        const r = age * Math.hypot(w,h) * 0.7;         // expands out
+        const a = Math.max(0, 0.25 * (1 - age));       // fade out
+        if (a <= 0) continue;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI*2);
+        const hue = (this.state && this.state._sonarHue) || 210;
+        ctx.strokeStyle = `hsla(${hue}, 80%, 65%, ${a})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
+
+  window.WaterFX = WaterFX;
+
+  // auto-start when DOM is ready
+  const run = () => {
+    if (window.__WaterFXStarted) return;
+    window.__WaterFXStarted = true;
+    WaterFX.start({});
+  };
+  (document.readyState === 'loading')
+    ? document.addEventListener('DOMContentLoaded', run)
+    : run();
+})();
+</script>
+
+<script>
+(function pinWaterFXAbovePlay(){
+  const fx = window.WaterFX;
+  const play = document.querySelector('.play');
+  if (!fx || !fx.canvas || !play) return;
+
+  // Use the nearest card as a positioned container
+  const card = play.closest('main.card') || play.parentElement;
+  card.style.position = card.style.position || 'relative';
+
+  // Move the WaterFX canvas into the card and float it over .play
+  if (fx.canvas.parentElement !== card) card.prepend(fx.canvas);
+  const c = fx.canvas;
+  Object.assign(c.style, {
+    position: 'absolute',
+    zIndex: '5',
+    pointerEvents: 'none'
+  });
+
+  // Keep the ocean exactly over .play (top/left/width/height in CSS px)
+  const layout = () => {
+    const cr = card.getBoundingClientRect();
+    const pr = play.getBoundingClientRect();
+    const left = pr.left - cr.left;
+    const top  = pr.top  - cr.top;
+
+    c.style.left   = left + 'px';
+    c.style.top    = top  + 'px';
+    c.style.width  = pr.width + 'px';
+    c.style.height = pr.height + 'px';
+
+    // match backing store to device pixels
+    const dpr = fx.dpr || Math.min(window.devicePixelRatio||1, 2);
+    c.width  = Math.max(1, Math.round(pr.width  * dpr));
+    c.height = Math.max(1, Math.round(pr.height * dpr));
+  };
+
+  // React to resizes/layout shifts
+  const ro = new ResizeObserver(layout);
+  ro.observe(play);
+  window.addEventListener('resize', layout, { passive:true });
+
+  // first layout
+  layout();
+})();
+
+
+(function syncSonarToWaterCenter(){
+  const fx = window.WaterFX;
+  const water = document.getElementById('water');
+  if (!fx || !water) return;
+
+  const update = () => {
+    const r = water.getBoundingClientRect();       // CSS px
+    // match cx, baseY used in drawWaterHint()
+const cx = r.left + r.width/2;
+const cy = r.top + r.height*0.7;
+fx.setSonarPixels(cx, cy);
+
+  };
+
+  update();
+  // Track layout changes
+  window.addEventListener('resize', update, {passive:true});
+  window.addEventListener('scroll', update, {passive:true});
+  const ro = new ResizeObserver(update);
+  ro.observe(water);
+})();
+
+
+
+
+</script>
+
+<script>
+(function ensureOceanOnBody(){
+  const FX = window.WaterFX;
+  if (!FX) return;
+  if (!FX.canvas) FX.start({ container: document.body });
+  const ocean = FX.canvas;
+  if (ocean.parentElement !== document.body) {
+    ocean.remove();
+    document.body.prepend(ocean);
+  }
+  // ensure the id + style exist in case earlier code didn't set them
+  ocean.id = 'waterFX';
+  Object.assign(ocean.style, {
+    position: 'fixed',
+    inset: '0',
+    zIndex: '0',
+    pointerEvents: 'none'
+  });
+})();
+
+//gl
+
+
+
+// --- WaterFX control helpers (non-fatal if WaterFX lacks these methods) ---
+function stopWaterFX(){
+  const w = window.WaterFX;
+  if (!w) return;
+  try {
+    w.running = false;
+    if (w._raf) cancelAnimationFrame(w._raf);
+  } catch {}
+  // Hide its canvas if present
+  const c = document.getElementById('waterFX') || w.canvas;
+  if (c) c.style.display = 'none';
+}
+function startWaterFX(){
+  const w = window.WaterFX;
+  if (!w) return;
+  const c = document.getElementById('waterFX') || w.canvas;
+  if (c) c.style.display = '';
+  w.running = true;
+  if (typeof w.start === 'function') w.start({container: w.container});
+}
+
+// --- Swimmers control helpers ---
+function stopSwimmers(){
+  if (window.school && typeof window.school.stop === 'function') {
+    window.school.stop();
+  } else {
+    // fallbacks: mark paused and remove DOM to save paint work
+    if (window.school) window.school.paused = true;
+    document.querySelectorAll('.swimmer').forEach(n=>n.remove());
+  }
+}
+function startSwimmers(){
+  if (window.school && typeof window.school.start === 'function') {
+    window.school.start();
+  } else if (window.school) {
+    window.school.paused = false;
+  }
+}
+
+// Apply the policy once at startup:
+if (window.PERF?.low){
+  stopWaterFX();
+  stopSwimmers();
+} else {
+  startWaterFX();
+  startSwimmers();
+}
+
+
+
+</script>
+
+
+
+</body>
+</html>
