@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Countermeasures — Endless Arena (One‑File Build v0.2)</title>
+<style>
+  :root{
+    --ui:#e6f4ff; --accent:#64b5f6; --good:#9cff9c; --warn:#ffd369; --bad:#ff6b6b;
+  }
+  html,body{height:100%}
+  body{margin:0;background:#05070c;color:var(--ui);font:14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;overflow:hidden}
+  #game{position:fixed;inset:0;display:grid;place-items:stretch}
+  canvas{display:block;width:100%;height:100%}
+
+  /* HUD */
+  .hud{position:fixed;left:14px;top:14px;z-index:10;pointer-events:none}
+  .hud .row{display:flex;gap:10px;margin-bottom:6px;align-items:baseline}
+  .hud .label{opacity:.7;letter-spacing:.4px}
+  .hud .value{font-weight:800}
+  .bar{height:8px;width:240px;background:rgba(255,255,255,.08);border-radius:10px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,#58e,#6df);box-shadow:0 0 12px #6df8}
+  .right{position:fixed;right:14px;top:14px;text-align:right}
+/* Shared bar look */
+.bar { display:flex; align-items:center; gap:.5rem; margin:.25rem 0; }
+.bar .label { font:600 12px/1.2 system-ui; opacity:.8; width:52px; }
+.bar .meter { position:relative; flex:1; height:8px; border-radius:999px; background:rgba(255,255,255,.10); overflow:hidden; }
+.bar .fill { position:absolute; inset:0 0 0 0; transform-origin:left center; transform:scaleX(1); border-radius:999px; background:linear-gradient(to right,#46d,#8af); }
+.bar .value { font:600 12px/1.2 system-ui; opacity:.75; width:48px; text-align:right; }
+.bar.h8 .meter { height:8px; }
+
+
+
+  /* Center toasts */
+  #center{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:20}
+  .toast{padding:12px 18px;border-radius:14px;background:rgba(0,0,0,.45);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .big{font-weight:900;font-size:26px}
+  .small{font-size:13px;opacity:.9;margin-top:6px}
+
+
+  /* Overlays */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);display:none;z-index:50}
+  .panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(8,10,16,.9);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px;width:min(860px,92vw);color:#e8f0ff}
+  .panel h1{margin:0 0 8px;font-size:24px}
+  .panel h2{margin:18px 0 8px;font-size:18px;opacity:.9}
+  .panel .grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(220px,1fr));gap:12px}
+  .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);padding:12px;border-radius:12px}
+  .card b{display:block;font-size:16px;margin-bottom:6px}
+  .btn{appearance:none;border:none;font:600 14px system-ui;color:#001;background:linear-gradient(180deg,#b9e1ff,#78c2ff);padding:10px 14px;border-radius:12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.35)}
+  .btn:active{transform:translateY(1px)}
+  .btn.alt{background:linear-gradient(180deg,#ddd,#bbb)}
+  .kbd{display:inline-grid;place-items:center;min-width:26px;padding:4px 6px;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);font-weight:700}
+  .muted{opacity:.7}
+
+  /* Mini log */
+  .log{position:fixed;left:14px;bottom:14px;max-width:42ch;padding:8px 10px;border-radius:12px;font-size:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);display:grid;gap:6px;z-index:12}
+</style>
+</head>
+<body>
+  <div id="game"><canvas id="c"></canvas></div>
+
+  <!-- HUD -->
+  <div class="hud" id="hudL">
+    <div class="row"><span class="label">Time</span><span class="value" id="hudTime">0.0s</span></div>
+    <div class="row"><span class="label">Score</span><span class="value" id="hudScore">0</span></div>
+    <div class="row"><span class="label">Multiplier</span><span class="value" id="hudMult">x1.00</span></div>
+    <div class="row"><span class="label">Flares</span><span class="value" id="hudFlares">3</span></div>
+    <div class="bar"><i id="coolBar" style="width:0%"></i></div>
+<!-- Fuel Bar -->
+<div id="fuelBar" class="bar h8">
+  <div class="label">Fuel</div>
+  <div class="meter">
+    <div id="fuelFill" class="fill"></div>
+  </div>
+  <div id="fuelText" class="value">100%</div>
+</div>
+  </div>
+  <div class="right" id="hudR">
+    <div class="row"><span class="label">Near Misses</span><span class="value" id="hudNM">0</span></div>
+    <div class="row"><span class="label">Shields</span><span class="value" id="hudSh">0</span></div>
+  </div>
+
+  <div id="center"></div>
+
+  <!-- Overlays -->
+  <div class="overlay" id="menu">
+    <div class="panel">
+      <h1>Countermeasures <span class="muted">— Hangar</span></h1>
+      <div class="grid" style="margin-bottom:10px">
+        <div class="card">
+          <b>Profile</b>
+          <div>Best Score: <span id="profBest">0</span></div>
+          <div>Total XP: <span id="profXP">0</span></div>
+          <div>Meta Upgrades: <span id="profUpg">0</span></div>
+        </div>
+        <div class="card">
+          <b>Controls</b>
+          <div><span class="kbd">←</span>/<span class="kbd">→</span> Rotate</div>
+          <div><span class="kbd">↑</span> Thrust, <span class="kbd">↓</span> Brake</div>
+          <div><span class="kbd">Space</span> Drop Flare</div>
+          <div><span class="kbd">P</span> Pause</div>
+        </div>
+        <div class="card">
+          <b>Goal</b>
+          Survive! Multiplier climbs with time and spikes on near misses. Flares distract missiles. Take upgrades between runs.
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;align-items:center">
+        <button class="btn alt" id="btnReset">Reset Progress</button>
+        <button class="btn" id="btnStart">Start Run</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="results">
+    <div class="panel">
+      <h1>Mission Results</h1>
+      <div class="grid">
+        <div class="card"><b>Time Survived</b><div id="resTime">0.0s</div></div>
+        <div class="card"><b>Final Score</b><div id="resScore">0</div></div>
+        <div class="card"><b>Near Misses</b><div id="resNM">0</div></div>
+      </div>
+      <h2>Choose an Upgrade</h2>
+      <div class="grid" id="upgradeChoices"></div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;align-items:center;margin-top:12px">
+        <button class="btn alt" id="btnHangar">Return to Hangar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+<script>
+(function(){
+  // ===== Utilities =====
+  const clamp=(v,a,b)=> Math.max(a, Math.min(b, v));
+  const lerp=(a,b,t)=> a+(b-a)*t;
+  const TAU=Math.PI*2;
+  const dist2=(a,b)=>{const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy};
+  const rand=(a=1,b=0)=> Math.random()*(a-b)+b;
+  const choose = arr => arr[(Math.random()*arr.length)|0];
+  const now = ()=> performance.now()/1000;
+
+  // Render helpers
+  const centerToast = (html, ms=900)=>{
+    const r = document.getElementById('center');
+    const d = document.createElement('div');
+    d.className = 'toast';
+    d.innerHTML = html;
+    r.appendChild(d);
+    setTimeout(()=>{ d.remove(); }, ms);
+  };
+  const log = (msg)=>{
+    const el = document.getElementById('log');
+    const line = document.createElement('div');
+    line.textContent = msg; el.prepend(line);
+    while(el.children.length>8) el.lastChild.remove();
+  }
+
+// ---- Fuel tuning (seconds at full burn) ----
+const FUEL_TUNING = {
+  // default baseline; your equipped missile can override with fuelSec
+  defaultFuelSec: 10,
+  // burn rate when at full thrust (1.0 throttle)
+  burnPerSecAtFull: 1,           // consume 1 "fuel second" per real second at full thrust
+  // passive on-the-spot regen when NOT thrusting (late-game tweak; keep 0 for now)
+  regenPerSecIdle: 0
+};
+
+// initialize once at boot or on loadout change
+function initFuelFromLoadout() {
+  const fuelSec = (state?.equip?.missile?.fuelSec) ?? FUEL_TUNING.defaultFuelSec;
+  state.player.maxFuel = fuelSec;
+  state.player.fuel    = fuelSec;
+}
+function ensureFuelBar() {
+  if (document.getElementById('fuelBar')) return;
+  const hud = document.getElementById('hud') || document.body; // adjust to your HUD root
+  // If you have a known flare bar parent, insert after it:
+  const flareBar = document.getElementById('flareBar'); // if you use this id
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div id="fuelBar" class="bar h8">
+      <div class="label">Fuel</div>
+      <div class="meter"><div id="fuelFill" class="fill"></div></div>
+      <div id="fuelText" class="value">100%</div>
+    </div>`;
+  const node = wrap.firstElementChild;
+  if (flareBar?.parentElement) {
+    flareBar.parentElement.insertBefore(node, flareBar.nextSibling);
+  } else {
+    hud.appendChild(node);
+  }
+}
+
+function updateFuelUI() {
+  const fuel   = Math.max(0, Math.min(state.player.fuel, state.player.maxFuel));
+  const pct    = state.player.maxFuel > 0 ? (fuel / state.player.maxFuel) : 0;
+  const w      = Math.round(pct * 100);
+  const fillEl = document.getElementById('fuelFill');
+  const txtEl  = document.getElementById('fuelText');
+  if (fillEl) fillEl.style.inset = `0 ${100 - w}% 0 0`;
+  if (txtEl)  txtEl.textContent = `${w}%`;
+}
+
+function resetFuel(p){
+  p.maxFuel = CFG.player.fuelSec; // or equippedMissile.fuelSec
+  p.fuel    = p.maxFuel;
+  updateFuelUI(p.fuel, p.maxFuel);
+}
+// call resetFuel(player) on respawn/loadout change.
+
+function updateFuelUI(cur, max){
+  const fill = document.getElementById('fuelFill');
+  const txt  = document.getElementById('fuelText');
+  if (!fill || !txt) return;
+  const pct = max > 0 ? Math.max(0, Math.min(cur/max, 1)) : 0;
+  fill.style.transform = `scaleX(${pct})`;
+  txt.textContent = `${Math.round(pct*100)}%`;
+}
+
+
+
+  // ===== Save / Meta =====
+  const SAVE_KEY = 'CM_SAVE_V2';
+  const defaultMeta = ()=>({ xp:0, best:0, upg:{}, seed:(Math.random()*1e9)|0 });
+  let META = loadMeta();
+  function loadMeta(){
+    try{ const raw = localStorage.getItem(SAVE_KEY); if(!raw) return defaultMeta();
+      const m = JSON.parse(raw); if(!m.upg) m.upg={}; if(!('best' in m)) m.best=0; return m;
+    }catch(e){ console.warn('Save load failed', e); return defaultMeta(); }
+  }
+  function saveMeta(){ localStorage.setItem(SAVE_KEY, JSON.stringify(META)); }
+
+  // ===== Canvas & DPI =====
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  let DPR=1, W=0, H=0;
+  function resize(){
+    DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
+    W = canvas.width = (innerWidth)*DPR;
+    H = canvas.height = (innerHeight)*DPR;
+    canvas.style.width = innerWidth+'px';
+    canvas.style.height = innerHeight+'px';
+    ctx.setTransform(1,0,0,1,0,0);
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  // ===== Input =====
+  const Input = { keys:{},
+    init(){
+      addEventListener('keydown', e=>{ this.keys[e.code]=true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyP'].includes(e.code)) e.preventDefault(); });
+      addEventListener('keyup', e=>{ this.keys[e.code]=false; });
+    },
+    down(k){ return !!this.keys[k]; }
+  };
+  Input.init();
+
+  // ===== Game Config =====
+  const CFG = {
+    player:{ radius:14, thrust:180, brake:280, maxSpeed:460, turn:3.4, flareMax:3, flareCooldown:5, shield:0, fuelSec: 10, burnPerSecAtFull: 1 },
+    enemy:{ radius:10, speed:200, accel:300, turn:2.6, spawnRadius: 900, spawnRateStart: 0.5, spawnRateRamp: 0.012 },
+    scoring:{ basePerSec: 2, multGrowthPerSec: 0.12, nearMissR: 120, nearMissBonusMax: 0.28 },
+    flare:{ life: 3.5, heat: 1.0, count:3, attractR: 600 },
+    world:{ wrap:false, w: 4000, h: 2400 },
+    clouds:{ count: 24 },
+  };
+
+  // Apply meta upgrades at start of run
+  function applyMetaTo(cfg){
+    const u = META.upg||{};
+    const L = (k)=> u[k]|0;
+    cfg.player.thrust     *= (1 + 0.10*L('thrust'));
+    cfg.player.turn       *= (1 + 0.10*L('turn'));
+    cfg.player.maxSpeed   *= (1 + 0.08*L('speed'));
+    cfg.player.brake      *= (1 + 0.10*L('brake'));
+    cfg.player.shield     += (1 * L('shield'));
+    cfg.player.flareMax   += (1 * L('flareCap'));
+    cfg.enemy.turn        *= (1 - 0.04*L('jammer'));
+    cfg.scoring.nearMissBonusMax *= (1 + 0.20*L('daredevil'));
+  }
+
+  // ===== Entities =====
+class Player{
+  constructor(){
+    this.x=0; this.y=0; this.vx=0; this.vy=0; this.a=0; this.r=CFG.player.radius;
+    this.thrust=CFG.player.thrust; this.brake=CFG.player.brake; this.maxSpeed=CFG.player.maxSpeed; this.turn=CFG.player.turn;
+    this.flares=CFG.player.flareMax; this.flareCd=0; this.shield=CFG.player.shield;
+    this.alive=true;
+
+    // --- NEW: fuel tank ---
+    this.maxFuel = CFG.player.fuelSec;               // seconds of thrust available
+    this.fuel    = this.maxFuel;                     // current fuel (seconds)
+    this.burnPerSec = CFG.player.burnPerSecAtFull;   // fuel/sec when thrusting
+    updateFuelUI(this.fuel, this.maxFuel);
+  }
+
+  step(dt){
+    if(Input.down('ArrowLeft')||Input.down('KeyA')) this.a -= this.turn*dt;
+    if(Input.down('ArrowRight')||Input.down('KeyD')) this.a += this.turn*dt;
+
+    // --- THRUST ONLY IF WE HAVE FUEL ---
+    const wantsThrust = (Input.down('ArrowUp')||Input.down('KeyW'));
+    const canThrust   = wantsThrust && this.fuel > 0;
+
+    if (canThrust){
+      this.vx += Math.cos(this.a)*this.thrust*dt;
+      this.vy += Math.sin(this.a)*this.thrust*dt;
+      fxThruster(this.x, this.y, this.a);
+
+      // burn fuel while thrusting
+      this.fuel = Math.max(0, this.fuel - this.burnPerSec * dt);
+      // update HUD
+      updateFuelUI(this.fuel, this.maxFuel);
+    }
+    // If wantsThrust but fuel == 0 → no acceleration (drift only)
+
+    if(Input.down('ArrowDown')||Input.down('KeyS')){
+      const sp = Math.hypot(this.vx,this.vy);
+      if(sp>1){ const k = Math.min(1, this.brake*dt/sp); this.vx*=1-k; this.vy*=1-k; }
+    }
+
+    const sp = Math.hypot(this.vx,this.vy);
+    const max = this.maxSpeed;
+    if(sp>max){ const k=max/sp; this.vx*=k; this.vy*=k; }
+
+    this.x += this.vx*dt; this.y += this.vy*dt;
+
+    if(this.flareCd>0) this.flareCd-=dt;
+    if(Input.down('Space')) tryDropFlare(this);
+  }
+
+  draw(){
+    ctx.save(); ctx.translate(this.x*DPR, this.y*DPR); ctx.rotate(this.a);
+    ctx.lineWidth=2*DPR; ctx.strokeStyle='rgba(105,210,255,.85)';
+    ctx.fillStyle='rgba(160,220,255,.22)';
+    const r=this.r*DPR; ctx.beginPath();
+    ctx.moveTo(r+6*DPR,0); ctx.lineTo(-r, -r*.7); ctx.lineTo(-r, r*.7); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    if(this.shield>0){ ctx.strokeStyle='rgba(150,255,200,.7)'; ctx.beginPath(); ctx.arc(0,0, r+6*DPR, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+
+
+  class Enemy{
+    constructor(type='basic'){
+      this.type=type; this.r=CFG.enemy.radius; this.turn=CFG.enemy.turn; this.speed=CFG.enemy.speed; this.accel=CFG.enemy.accel;
+      this.resetSpawn();
+      this.prevDist=null; this.minDist=Infinity; this.nearCd=0; this.dead=false;
+      this.target=null; this.color='rgba(255,100,120,.85)';
+    }
+    resetSpawn(){
+      const ang = rand(0,TAU), R = CFG.enemy.spawnRadius*rand(0.85,1.15);
+      this.x = (player?player.x:0) + Math.cos(ang)*R;
+      this.y = (player?player.y:0) + Math.sin(ang)*R;
+      this.a = rand(0,TAU); this.vx=0; this.vy=0;
+    }
+    step(dt){
+      const t = findTarget(this);
+      this.target = t;
+      const desired = Math.atan2(t.y-this.y, t.x-this.x);
+      let da = wrapAngle(desired - this.a);
+      const maxTurn = this.turn*dt; if(da> maxTurn) da=maxTurn; else if(da<-maxTurn) da=-maxTurn; this.a += da;
+      this.vx += Math.cos(this.a)*this.accel*dt;
+      this.vy += Math.sin(this.a)*this.accel*dt;
+      const sp = Math.hypot(this.vx,this.vy), max=this.speed; if(sp>max){ const k=max/sp; this.vx*=k; this.vy*=k; }
+      this.x += this.vx*dt; this.y += this.vy*dt;
+fxMissileTrail(this.x - Math.cos(this.a)*this.r*0.8,
+               this.y - Math.sin(this.a)*this.r*0.8);
+
+      if(this.nearCd>0) this.nearCd-=dt;
+      const d = player? Math.hypot(this.x-player.x, this.y-player.y) : 99999;
+      if(this.prevDist!=null){
+        if(this.prevDist < d && this.minDist < CFG.scoring.nearMissR && this.nearCd<=0){
+          const closeness = clamp(1 - this.minDist/CFG.scoring.nearMissR, 0, 1);
+          onNearMiss(closeness, this);
+          this.nearCd = 0.85;
+          this.minDist = Infinity;
+        }
+      }
+      this.prevDist = d;
+      if(d < this.minDist) this.minDist = d;
+
+      // Hit test
+      if(player){
+        const hitR = this.r + player.r;
+        if(d < hitR){
+          this.dead = true;
+          if(player.shield>0){ player.shield--; fxPop(this.x,this.y,'shield'); log('Shield absorbed a hit.'); }
+          else{ gameOver(); return; }
+        }
+      }
+    }
+    draw(){
+      ctx.save(); ctx.translate(this.x*DPR, this.y*DPR); ctx.rotate(this.a);
+      ctx.lineWidth=2*DPR; ctx.strokeStyle=this.color; ctx.fillStyle='rgba(255,80,100,.18)';
+      const r=this.r*DPR; ctx.beginPath(); ctx.moveTo(r+4*DPR,0); ctx.lineTo(-r, -r*.6); ctx.lineTo(-r, r*.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+function fxMissileTrail(x,y){
+  FX.push({
+    x,y,
+    vx: rand(-10,10),
+    vy: rand(-10,10),
+    life: 0.4,
+    r: 2.2*DPR,
+    col: 'rgba(255,120,140,0.8)'
+  });
+}
+
+
+  class Flare{
+    constructor(x,y){ this.x=x; this.y=y; this.vx=rand(-40,40); this.vy=rand(-40,40); this.life=CFG.flare.life; this.heat=CFG.flare.heat; this.r=9; }
+    step(dt){ this.x+=this.vx*dt; this.y+=this.vy*dt; this.life-=dt; }
+    draw(){ ctx.save(); ctx.translate(this.x*DPR,this.y*DPR); const g=ctx.createRadialGradient(0,0,0, 0,0, 26*DPR);
+      g.addColorStop(0,'rgba(255,220,140,.9)'); g.addColorStop(1,'rgba(255,120,50,.0)'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,26*DPR,0,TAU); ctx.fill(); ctx.restore(); }
+  }
+
+  // ===== World helpers (endless arena) =====
+  function wrap(o){ /* no wrapping in endless build */ }
+  function wrapAngle(a){ while(a> Math.PI) a-=TAU; while(a<-Math.PI) a+=TAU; return a; }
+
+  const Cam = { x:0, y:0, step(){ if(player){ this.x = lerp(this.x, player.x, .12); this.y = lerp(this.y, player.y, .12);} } };
+
+  // Background: starfield + clouds that recycle around camera
+  const Stars = new Array(180).fill(0).map(()=>({ x:rand(-2000,2000), y:rand(-1200,1200), z: rand(0.2,1), vx: rand(-2,2), vy: rand(-1,1) }));
+const Clouds = new Array(CFG.clouds.count).fill(0).map(()=> newCloud());
+function newCloud(){
+  return { x:rand(-2000,2000), y:rand(-1200,1200), r:rand(260,520), a:rand(0.08,0.18), vx:rand(-8,8), vy:rand(-4,4) };
+}
+function stepBG(dt){
+  // Stars: drift + recycle around a large parallax box centered on camera
+  const SX = 2800, SY = 1800, px = Cam.x*0.2, py = Cam.y*0.2;
+  for(const s of Stars){
+    s.x += s.vx*dt; s.y += s.vy*dt;
+    if (s.x < px - SX) s.x = px + SX - rand(0,400);
+    if (s.x > px + SX) s.x = px - SX + rand(0,400);
+    if (s.y < py - SY) s.y = py + SY - rand(0,300);
+    if (s.y > py + SY) s.y = py - SY + rand(0,300);
+  }
+  // Clouds: recycle around camera for endless feel
+  for(const c of Clouds){
+    c.x += c.vx*dt; c.y += c.vy*dt;
+    if (Math.abs(c.x - Cam.x) > 2600) c.x = Cam.x + (c.x < Cam.x ? 1 : -1) * rand(1400, 2200);
+    if (Math.abs(c.y - Cam.y) > 1600) c.y = Cam.y + (c.y < Cam.y ? 1 : -1) * rand( 900, 1400);
+  }
+}
+function drawBG(){
+  // vignette
+  const g = ctx.createRadialGradient(W/2,H/2, 0, W/2,H/2, Math.max(W,H)*.7);
+  g.addColorStop(0,'#071019'); g.addColorStop(1,'#03060b');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // parallax stars
+  ctx.save(); ctx.translate(W/2 - Cam.x*0.2*DPR, H/2 - Cam.y*0.2*DPR);
+  ctx.fillStyle='rgba(255,255,255,.9)';
+  for(const s of Stars){ const x = s.x*DPR, y=s.y*DPR; ctx.globalAlpha = s.z*0.85; ctx.fillRect(x,y,1.5*DPR,1.5*DPR); }
+  ctx.restore(); ctx.globalAlpha=1;
+
+  // clouds
+  ctx.save(); ctx.translate(W/2 - Cam.x*0.5*DPR, H/2 - Cam.y*0.5*DPR);
+  for(const c of Clouds){ ctx.fillStyle = `rgba(180,200,240,${c.a})`; ctx.beginPath(); ctx.arc(c.x*DPR, c.y*DPR, c.r*DPR, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+
+// ===== Game State =====
+  let player=null, enemies=[], flares=[], running=false, tPrev=now(), aliveTime=0, score=0, mult=1, nmCount=0, spawnRate, spawnTimer=0, paused=false;
+  function resetRun(){
+    const cfg = JSON.parse(JSON.stringify(CFG));
+    applyMetaTo(cfg); Object.assign(CFG, cfg);
+
+    player = new Player();
+    enemies = []; flares=[]; aliveTime=0; score=0; mult=1; nmCount=0; spawnRate = CFG.enemy.spawnRateStart; spawnTimer=0; running=true; paused=false;
+    centerToast(`<div class="big">SURVIVE</div><div class="small">Near misses juice your multiplier</div>`, 1100);
+  }
+
+  // Targeting for enemies
+  function findTarget(e){
+    let target = player; let bestW = 0.0;
+    for(const f of flares){ if(f.life<=0) continue; const d2 = dist2(e,f); const d = Math.sqrt(d2);
+      if(d < CFG.flare.attractR){ const w = f.heat / Math.max(50, d2); if(w>bestW){ bestW=w; target=f; } }
+    }
+    return target||player||{x:0,y:0};
+  }
+  function tryDropFlare(p){
+    if(p.flareCd>0 || p.flares<=0) return; p.flares--; p.flareCd = CFG.player.flareCooldown;
+    flares.push(new Flare(p.x, p.y)); fxPop(p.x,p.y,'flare'); log('Flare deployed.');
+  }
+
+  // Endless arena: recycle enemies that fall far behind the player
+  function recycleEnemies(){
+    if(!player||!enemies) return;
+    const sp = Math.hypot(player.vx, player.vy);
+    const fx = sp>10 ? player.vx/sp : Math.cos(player.a);
+    const fy = sp>10 ? player.vy/sp : Math.sin(player.a);
+    for(const e of enemies){
+      const dx = e.x - player.x, dy = e.y - player.y;
+      const d = Math.hypot(dx,dy);
+      const dot = dx*fx + dy*fy; // behind if negative
+      if (d > 2600 && dot < -300){
+        const lateral = rand(-600,600);
+        e.x = player.x + fx*1800 + (-fy)*lateral;
+        e.y = player.y + fy*1800 + ( fx)*lateral;
+        e.vx *= 0.5; e.vy *= 0.5; e.prevDist=null; e.minDist=Infinity;
+      }
+    }
+  }
+
+  // Near miss and scoring
+  function onNearMiss(closeness, by){
+    nmCount++;
+    const bonus = closeness * CFG.scoring.nearMissBonusMax; // 0..max
+    mult *= Math.pow(1 + bonus, 0.4); // exponent <1 softens curve
+    fxNear(player.x, player.y, bonus);
+    log(`Near miss! +${(bonus*100).toFixed(1)}% mult`);
+  }
+
+  // ===== FX =====
+  const FX = [];
+  function fxThruster(x,y,a){ const k = rand(.6,.9), sp=rand(40,90); FX.push({x:x-Math.cos(a)*16, y:y-Math.sin(a)*16, vx: -Math.cos(a)*sp+rand(-20,20), vy: -Math.sin(a)*sp+rand(-20,20), life:.3, r:2.5, col:'rgba(120,200,255,.9)'}); }
+  function fxPop(x,y,type='hit'){ const N = type==='flare'? 18 : 26; for(let i=0;i<N;i++){ const ang = rand(0,TAU), sp = rand(60, type==='flare'?180:240); FX.push({x,y, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp, life: rand(.35,.6), r: rand(2,4)*DPR, col: type==='shield'? 'rgba(150,255,200,.9)' : 'rgba(255,160,120,.95)'}); } }
+  function fxNear(x,y,bonus){ const txt = `NEAR MISS x${(1+bonus).toFixed(2)}`; const n = {x,y, life:0.9, txt}; FX.push(n); }
+  function stepFX(dt){ for(let i=FX.length-1;i>=0;i--){ const p=FX[i]; p.life-=dt; if(p.vx!=null){ p.x+=p.vx*dt; p.y+=p.vy*dt; } if(p.life<=0) FX.splice(i,1); } }
+  function drawFX(){ for(const p of FX){ if(p.vx!=null){ ctx.save(); ctx.globalAlpha = clamp(p.life,0,1); ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x*DPR, p.y*DPR, p.r, 0, TAU); ctx.fill(); ctx.restore(); } else if(p.txt){ ctx.save(); ctx.globalAlpha = clamp(p.life,0,1); ctx.fillStyle='#ffd369'; ctx.font = `${16*DPR}px 700 system-ui`; ctx.textAlign='center'; ctx.fillText(p.txt, p.x*DPR, p.y*DPR - (1-p.life)*24*DPR); ctx.restore(); } } }
+
+  // ===== Loop =====
+  function step(dt){
+    if(!running||paused) return;
+    aliveTime+=dt; mult += CFG.scoring.multGrowthPerSec*dt; score += (CFG.scoring.basePerSec)*dt * mult;
+
+    // Spawn enemies (increasing rate)
+    spawnTimer -= dt; if(spawnTimer<=0){ enemies.push(new Enemy()); spawnRate += CFG.enemy.spawnRateRamp*dt; const rate = clamp(spawnRate, 0.1, 4); spawnTimer= 1/rate; }
+
+    player.step(dt);
+    for(let i=enemies.length-1;i>=0;i--){ const e=enemies[i]; e.step(dt); if(e.dead){ fxPop(e.x,e.y,'hit'); enemies.splice(i,1); } }
+    for(let i=flares.length-1;i>=0;i--){ const f=flares[i]; f.step(dt); if(f.life<=0) flares.splice(i,1); }
+
+    recycleEnemies();
+
+    Cam.step(); stepBG(dt); stepFX(dt);
+
+    // HUD
+    hudTime.textContent = aliveTime.toFixed(1)+'s';
+    hudScore.textContent = Math.floor(score).toLocaleString();
+    hudMult.textContent = 'x'+mult.toFixed(2);
+    hudFlares.textContent = player.flares.toString();
+    hudNM.textContent = nmCount.toString();
+    hudSh.textContent = player.shield|0;
+    coolBar.style.width = (100*clamp(1-player.flareCd/CFG.player.flareCooldown,0,1))+'%';
+  }
+
+  function draw(){
+    ctx.setTransform(1,0,0,1,0,0);
+    drawBG();
+
+    // world camera
+    ctx.save(); ctx.translate( (W/2) - Cam.x*DPR, (H/2) - Cam.y*DPR );
+
+    // faint grid
+    // infinite grid around camera
+    const stepG = 200; const halfW = W/DPR/2, halfH = H/DPR/2;
+    const startX = Math.floor((Cam.x - halfW)/stepG)*stepG;
+    const endX   = Math.floor((Cam.x + halfW)/stepG)*stepG + stepG;
+    const startY = Math.floor((Cam.y - halfH)/stepG)*stepG;
+    const endY   = Math.floor((Cam.y + halfH)/stepG)*stepG + stepG;
+    ctx.strokeStyle='rgba(255,255,255,.05)'; ctx.lineWidth=1*DPR; ctx.beginPath();
+    for(let x=startX; x<=endX; x+=stepG){ const X = x*DPR; ctx.moveTo(X, (startY- stepG)*DPR); ctx.lineTo(X, (endY+ stepG)*DPR); }
+    for(let y=startY; y<=endY; y+=stepG){ const Y = y*DPR; ctx.moveTo((startX- stepG)*DPR, Y); ctx.lineTo((endX+ stepG)*DPR, Y); }
+    ctx.stroke();
+
+    // entities (guard pre-run)
+    if (flares) { for (const f of flares) f.draw(); }
+    if (enemies) { for (const e of enemies) e.draw(); }
+    if (player) { player.draw(); }
+
+    drawFX();
+
+    ctx.restore();
+  }
+
+  function frame(){ const t=now(); let dt=t-tPrev; tPrev=t; if(dt>0.07) dt=0.07; step(dt); draw(); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+
+  // ===== Pause & Game Over =====
+  addEventListener('keydown', e=>{ if(e.code==='KeyP'){ paused=!paused; centerToast(`<div class="big">${paused?'PAUSED':'RESUME'}</div>`, 700);} });
+
+  function gameOver(){
+    running=false; fxPop(player.x,player.y,'hit'); centerToast(`<div class="big" style="color:var(--bad)">DESTROYED</div>`, 1000);
+    META.best = Math.max(META.best, Math.floor(score)); META.xp += Math.floor(score);
+    saveMeta();
+    resTime.textContent = aliveTime.toFixed(1)+'s';
+    resScore.textContent = Math.floor(score).toLocaleString();
+    resNM.textContent = nmCount;
+    buildUpgradeChoices();
+results.style.display='block';
+
+const sc = Math.floor(score || 0);
+onRunComplete(sc);   // feed score to XP/coin converter
+showHangar(true);    // optional: auto-open shop after run
+
+  }
+
+  // ===== Upgrades between runs =====
+  const UPG_POOL = [
+    { id:'shield', name:'+1 Shield', desc:'Survive one extra hit per run (stacks).', apply:()=> incr('shield') },
+    { id:'thrust', name:'+10% Thrust', desc:'Accelerate faster.', apply:()=> incr('thrust') },
+    { id:'turn', name:'+10% Turn Rate', desc:'Tighter handling.', apply:()=> incr('turn') },
+    { id:'speed', name:'+8% Top Speed', desc:'Higher max speed.', apply:()=> incr('speed') },
+    { id:'brake', name:'+10% Brake', desc:'Quicker slow-down.', apply:()=> incr('brake') },
+    { id:'flareCap', name:'+1 Max Flare', desc:'Carry additional flare.', apply:()=> incr('flareCap') },
+    { id:'jammer', name:'-4% Enemy Turn', desc:'Slightly dull enemy tracking.', apply:()=> incr('jammer') },
+    { id:'daredevil', name:'+20% Near-Miss Bonus', desc:'Risk pays more.', apply:()=> incr('daredevil') },
+  ];
+  function incr(key){ META.upg[key] = (META.upg[key]|0)+1; saveMeta(); }
+
+  function buildUpgradeChoices(){
+    upgradeChoices.innerHTML='';
+    const picks = new Set();
+    while(picks.size<3) picks.add(choose(UPG_POOL).id);
+    const arr = [...picks].map(id=> UPG_POOL.find(u=>u.id===id));
+    for(const u of arr){
+      const card = document.createElement('div'); card.className='card';
+      card.innerHTML = `<b>${u.name}</b><div class="muted">${u.desc}</div><div style=\"margin-top:10px\"><button class=\"btn\">Take</button></div>`;
+      const btn = card.querySelector('button');
+      btn.onclick = ()=>{ u.apply(); results.style.display='none'; resetRun(); };
+      upgradeChoices.appendChild(card);
+    }
+  }
+
+  // ===== Menu / Hangar =====
+  function refreshMenu(){ profBest.textContent = (META.best||0).toLocaleString(); profXP.textContent = (META.xp||0).toLocaleString(); profUpg.textContent = Object.keys(META.upg||{}).length; }
+  btnStart.onclick = ()=>{ menu.style.display='none'; resetRun(); };
+  btnHangar.onclick = ()=>{ results.style.display='none'; menu.style.display='block'; refreshMenu(); };
+  btnReset.onclick = ()=>{ if(confirm('Reset all progress?')){ META = defaultMeta(); saveMeta(); refreshMenu(); } };
+
+  // init
+  menu.style.display='block'; refreshMenu();
+
+  // ===== HUD refs =====
+  const hudTime = document.getElementById('hudTime');
+  const hudScore = document.getElementById('hudScore');
+  const hudMult = document.getElementById('hudMult');
+  const hudFlares = document.getElementById('hudFlares');
+  const hudNM = document.getElementById('hudNM');
+  const hudSh = document.getElementById('hudSh');
+  const coolBar = document.getElementById('coolBar');
+
+})();
+
+/*
+  Countermeasures – Missile Shop + Leveling (drop‑in module)
+  ---------------------------------------------------------
+  Paste this entire block near the bottom of countermeasures.html (after your game code) 
+  or import it as a separate <script> AFTER the core game loads.
+
+  WHAT THIS ADDS
+  - Expandable missiles array with level requirements and prices
+  - Player leveling system (XP → Level with scaling XP thresholds)
+  - Hangar ➜ Missile Shop: scrollable, purchase + equip flow
+  - Upgrades-aware stat resolution (your existing upgrades modify missile handling)
+  - Local save (localStorage) for: coins, level/xp, owned missiles, equipped missile
+
+  HOOKS YOU CAN CALL FROM YOUR GAME
+  - addXP(n): award experience (handles level‑ups automatically)
+  - getEquippedMissileStats(): resolved handling + damage after upgrades
+  - getEquippedMissileDef(): the raw missile definition object
+  - showHangar(true/false): open/close overlay UI
+  - spendCoins(n) / addCoins(n)
+  - onLevelUp(level): callback you can customize for rewards/FX
+
+  MINIMAL INTEGRATION (search in your code and wire up):
+  - When the player destroys/evades/etc, call addXP(amount) & addCoins(amount) as you like.
+  - In your missile spawn/AI, use getEquippedMissileStats() for speed/turn/etc.
+    Example:
+      const ms = getEquippedMissileStats();
+      projectile.speed    = ms.speed;
+      projectile.turnRate = ms.turnRate;
+      projectile.accel    = ms.accel;
+      projectile.fuel     = ms.fuel;
+      projectile.damage   = ms.damage;
+
+  You can freely add more missiles by pushing to MISSILES[] (see bottom of file for template).
+*/
+
+(function(){
+  // ------------------------------
+  // Persistent Player State
+  // ------------------------------
+  const SAVE_KEY = 'CMG_missileShop_v1';
+  const defaultState = {
+    coins: 250,
+    player: { level: 1, xp: 0, xpNext: 100 },
+    ownedMissiles: ['starter'], // always own starter
+    equippedMissileId: 'starter',
+    // Example upgrade flags + values. Tie these to your real upgrade system.
+    upgrades: {
+      // flat or percentage modifiers (0.10 = +10%) — adjust as your game needs
+      speedPct: 0.00,
+      turnPct:  0.00,
+      accelPct: 0.00,
+      fuelPct:  0.00,
+      damagePct:0.00,
+      // flat
+      speedFlat: 0,
+      turnFlat:  0,
+      accelFlat: 0,
+      fuelFlat:  0,
+      damageFlat:0,
+    },
+  };
+
+  let STATE = load() || defaultState;
+
+  function save(){ localStorage.setItem(SAVE_KEY, JSON.stringify(STATE)); }
+  function load(){ try { return JSON.parse(localStorage.getItem(SAVE_KEY)||''); } catch(e){ return null; } }
+
+  // ------------------------------
+  // Missiles Catalog (expandable)
+  // ------------------------------
+  const MISSILES = [
+    {
+      id: 'starter',
+      name: 'Mk‑I Starter',
+      desc: 'Reliable basic missile. Good all‑rounder.',
+      price: 0,
+      levelReq: 1,
+      // base handling — tuned to your game scale
+      base: { speed: 4.0, turnRate: 2.0, accel: 0.12, fuel: 220, damage: 24 },
+      tags: ['default']
+    },
+    {
+      id: 'bx2',
+      name: 'BX2 – Basic Missile',
+      desc: 'Cheaper production model. Straight‑line speed, less agile.',
+      price: 180,
+      levelReq: 2,
+      base: { speed: 4.6, turnRate: 1.7, accel: 0.10, fuel: 240, damage: 26 },
+      tags: ['speed','budget']
+    },
+    {
+      id: 'fx1',
+      name: 'FX1 – Flex Missile',
+      desc: 'High maneuverability. Tracks targets with ease.',
+      price: 320,
+      levelReq: 3,
+      base: { speed: 4.2, turnRate: 2.6, accel: 0.14, fuel: 210, damage: 23 },
+      tags: ['maneuver']
+    },
+  ];
+
+  // Fast lookup
+  const MISSILE_BY_ID = Object.fromEntries(MISSILES.map(m=>[m.id,m]));
+
+  // ------------------------------
+  // Upgrade application / stat resolve
+  // ------------------------------
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function applyUpgrades(base, up){
+    // Combine percent + flat
+    const out = {
+      speed:  (base.speed  + (up.speedFlat||0))  * (1 + (up.speedPct||0)),
+      turnRate:(base.turnRate+ (up.turnFlat||0))  * (1 + (up.turnPct||0)),
+      accel:  (base.accel  + (up.accelFlat||0))  * (1 + (up.accelPct||0)),
+      fuel:   Math.round((base.fuel   + (up.fuelFlat||0))   * (1 + (up.fuelPct||0))),
+      damage: Math.round((base.damage + (up.damageFlat||0)) * (1 + (up.damagePct||0))),
+    };
+    // Optional safety clamps for your engine ranges — edit/remove as desired
+    out.speed    = clamp(out.speed,    1.0, 12.0);
+    out.turnRate = clamp(out.turnRate, 0.5,  8.0);
+    out.accel    = clamp(out.accel,    0.02, 0.40);
+    out.fuel     = clamp(out.fuel,     80,  9999);
+    out.damage   = clamp(out.damage,   5,    999);
+    return out;
+  }
+
+  function getEquippedMissileDef(){ return MISSILE_BY_ID[STATE.equippedMissileId] || MISSILES[0]; }
+  function getEquippedMissileStats(){ return applyUpgrades(getEquippedMissileDef().base, STATE.upgrades||{}); }
+
+  // ------------------------------
+  // Leveling System
+  // ------------------------------
+  function xpCurve(level){
+    // Smooth growth; tweak to taste
+    // Example: 100, 140, 196, 274, ...
+    const base = 100;
+    return Math.round(base * Math.pow(1.4, Math.max(0, level-1)));
+  }
+
+  function onLevelUp(level){
+    // Customize: reward coins, show FX, unlocks, etc.
+    addCoins(50 + level*10);
+    toast(`Level Up! ➜ Level ${level}. +${50 + level*10} coins`);
+  }
+
+  function addXP(n){
+    STATE.player.xp += Math.max(0, n|0);
+    // handle multiple level ups if big XP chunk
+    while(STATE.player.xp >= STATE.player.xpNext){
+      STATE.player.xp -= STATE.player.xpNext;
+      STATE.player.level++;
+      STATE.player.xpNext = xpCurve(STATE.player.level);
+      onLevelUp(STATE.player.level);
+    }
+    save();
+    refreshTopline();
+  }
+
+  function setXP(n){ STATE.player.xp = Math.max(0, n|0); save(); refreshTopline(); }
+  function addCoins(n){ STATE.coins = Math.max(0, (STATE.coins||0) + (n|0)); save(); refreshTopline(); }
+  function spendCoins(n){ if((STATE.coins||0) >= n){ STATE.coins -= n; save(); refreshTopline(); return true; } return false; }
+
+  // ------------------------------
+  // Hangar / Shop UI
+  // ------------------------------
+  const css = `
+  .hangarWrap{position:fixed;inset:0;display:none;z-index:9999;background:rgba(10,16,24,.76);backdrop-filter:blur(4px)}
+  .hangar{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(980px,92vw);height:min(640px,88vh);background:#0d1522;border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  .hgTop{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:linear-gradient(180deg,#132031,#0d1522)}
+  .hgTitle{font:600 18px/1.2 ui-sans-serif,system-ui;letter-spacing:.3px;color:#e7f2ff}
+  .wallet{font:600 14px/1 ui-sans-serif,system-ui;color:#a8d3ff}
+  .wallet b{color:#fff}
+  .lvl{margin-left:16px;color:#9cc3ff}
+  .xpBar{height:8px;background:#0a121d;border-radius:99px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+  .xpFill{height:100%;width:0;background:linear-gradient(90deg,#31c6ff,#7af173)}
+  .hgBody{display:grid;grid-template-columns: 380px 1fr;gap:12px;padding:12px}
+  .shopList{background:#0b1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:auto}
+  .shopItem{display:grid;grid-template-columns:1fr auto;gap:6px;padding:12px 12px;border-bottom:1px dashed rgba(255,255,255,.06)}
+  .shopItem:last-child{border-bottom:none}
+  .shopItem h4{margin:0;font:600 15px/1.2 ui-sans-serif;color:#eaf3ff}
+  .shopItem p{margin:4px 0 0;font:12px/1.3 ui-sans-serif;color:#9bb3d3}
+  .pill{align-self:center;justify-self:end;padding:6px 10px;border-radius:10px;font:700 12px/1 ui-sans-serif;letter-spacing:.2px}
+  .owned{background:#17253a;color:#a4d1ff}
+  .locked{background:#27131a;color:#ff9ab3}
+  .price{background:#162a1a;color:#9ef0ae}
+  .hgDetail{background:#0b1220;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;display:grid;grid-template-rows:auto auto 1fr auto;gap:10px}
+  .statGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .stat{background:#0e1a2c;border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:8px 8px}
+  .stat b{display:block;font:700 12px/1 ui-sans-serif;color:#cfe6ff;margin-bottom:6px}
+  .stat span{font:600 13px/1 ui-sans-serif;color:#9dc1f3}
+  .btnRow{display:flex;gap:8px;justify-content:flex-end}
+  .btn{padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#0f1a2a;font:700 13px/1 ui-sans-serif;color:#e9f1ff;cursor:pointer}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .chip{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#11243a;color:#8cc7ff;font:11px/1 ui-sans-serif}
+  .closeX{cursor:pointer;padding:8px 10px;border-radius:8px;background:#101b2c;color:#9fc1ee;border:1px solid rgba(255,255,255,.12)}
+  .toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:#0f1928;color:#dff2ff;padding:10px 14px;border:1px solid rgba(255,255,255,.10);border-radius:10px;z-index:10000;opacity:0;transition:.25s ease}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  `;
+
+  const html = `
+  <div class="hangarWrap" id="hangarWrap" aria-hidden="true">
+    <div class="hangar" role="dialog" aria-label="Hangar – Missile Shop">
+      <div class="hgTop">
+        <div class="hgTitle">Hangar <span class="lvl" id="hgLvl"></span></div>
+        <div style="display:flex;align-items:center;gap:12px;min-width:46%">
+          <div style="flex:1">
+            <div class="xpBar"><div class="xpFill" id="xpFill"></div></div>
+          </div>
+          <div class="wallet">Coins: <b id="hgCoins"></b></div>
+          <button class="closeX" id="hgClose">Close</button>
+        </div>
+      </div>
+      <div class="hgBody">
+        <div class="shopList" id="shopList" tabindex="0" aria-label="Missile Catalog"></div>
+        <div class="hgDetail">
+          <div id="detailTitle" class="hgTitle" style="font-size:16px">Select a missile</div>
+          <div id="detailDesc" style="color:#9bb3d3;font:13px/1.4 ui-sans-serif">Browse the catalog on the left to view stats.</div>
+          <div class="statGrid" id="statGrid"></div>
+          <div class="btnRow">
+            <button class="btn" id="btnEquip" disabled>Equip</button>
+            <button class="btn" id="btnBuy" disabled>Buy</button>
+          </div>
+        </div>
+      </div>
+      <div style="padding:10px 12px;color:#6fa9ff;font:12px/1.3 ui-sans-serif;border-top:1px solid rgba(255,255,255,.06)">TIP: Stats shown are final values <i>after</i> your upgrades.</div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  `;
+
+  // inject once
+  if(!document.getElementById('hangarWrap')){
+    const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
+    const wrap = document.createElement('div'); wrap.innerHTML = html; document.body.appendChild(wrap);
+  }
+
+  const el = {
+    wrap:   document.getElementById('hangarWrap'),
+    shop:   document.getElementById('shopList'),
+    lvl:    document.getElementById('hgLvl'),
+    coins:  document.getElementById('hgCoins'),
+    xpFill: document.getElementById('xpFill'),
+    close:  document.getElementById('hgClose'),
+    dTitle: document.getElementById('detailTitle'),
+    dDesc:  document.getElementById('detailDesc'),
+    statG:  document.getElementById('statGrid'),
+    btnBuy: document.getElementById('btnBuy'),
+    btnEq:  document.getElementById('btnEquip'),
+    toast:  document.getElementById('toast'),
+  };
+
+  let selectedId = null;
+
+  function toast(msg){
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    setTimeout(()=>el.toast.classList.remove('show'), 1400);
+  }
+
+  function refreshTopline(){
+    el.coins.textContent = (STATE.coins||0).toLocaleString();
+    const p = STATE.player; el.lvl.textContent = `Level ${p.level}`;
+    const fillPct = Math.max(0, Math.min(1, p.xp / Math.max(1,p.xpNext)));
+    el.xpFill.style.width = (fillPct*100).toFixed(1)+'%';
+  }
+
+  function renderShop(){
+    el.shop.innerHTML = '';
+    MISSILES.forEach(m => {
+      const owned  = STATE.ownedMissiles.includes(m.id);
+      const locked = !owned && STATE.player.level < m.levelReq;
+      const row = document.createElement('div'); row.className = 'shopItem';
+      row.innerHTML = `
+        <div>
+          <h4>${m.name}${owned?'<span class="chip">Owned</span>':''}${STATE.equippedMissileId===m.id?'<span class="chip">Equipped</span>':''}</h4>
+          <p>${m.desc}</p>
+        </div>
+        <div class="pill ${owned?'owned':(locked?'locked':'price')}">${owned? 'OWNED' : (locked ? ('L'+m.levelReq+' Req') : (m.price+'c'))
+}</div>
+      `;
+      row.addEventListener('click', ()=> selectMissile(m.id));
+      el.shop.appendChild(row);
+    });
+  }
+
+  function statLine(label, value){
+    const d = document.createElement('div'); d.className='stat';
+    d.innerHTML = `<b>${label}</b><span>${value}</span>`; return d;
+  }
+
+
+// -------- Run result → XP/Coins wiring --------
+function xpFromScore(score){
+  score = Math.max(0, score|0);
+  const base = 0.12, bonus = 0.02; // tune to taste
+  // Smooth early-game, scales gently with big scores
+  return Math.max(1, Math.floor(score*base + Math.sqrt(score)*bonus*20));
+}
+function coinsFromScore(score){
+  score = Math.max(0, score|0);
+  const rate = 0.06, cap = 2000;   // soft cap; adjust or remove
+  return Math.min(cap, Math.max(1, Math.floor(score*rate)));
+}
+function onRunComplete(score){
+  const xp    = xpFromScore(score);
+  const coins = coinsFromScore(score);
+  addXP(xp);
+  addCoins(coins);
+  toast(`Run complete: +${xp} XP, +${coins} coins`);
+}
+
+
+  function selectMissile(id){
+    selectedId = id;
+    const m = MISSILE_BY_ID[id];
+    const owned  = STATE.ownedMissiles.includes(id);
+    const locked = !owned && STATE.player.level < m.levelReq;
+    const stats  = applyUpgrades(m.base, STATE.upgrades||{});
+
+    el.dTitle.textContent = m.name;
+    el.dDesc.textContent  = `${m.desc}  •  Level Req: ${m.levelReq}  •  Price: ${m.price}c`;
+
+    el.statG.innerHTML = '';
+    el.statG.appendChild(statLine('Speed',    stats.speed.toFixed(2)));
+    el.statG.appendChild(statLine('Turn',     stats.turnRate.toFixed(2)));
+    el.statG.appendChild(statLine('Accel',    stats.accel.toFixed(3)));
+    el.statG.appendChild(statLine('Fuel',     stats.fuel));
+    el.statG.appendChild(statLine('Damage',   stats.damage));
+
+    el.btnBuy.disabled = owned || locked || (STATE.coins < m.price);
+    el.btnEq.disabled  = !owned || (STATE.equippedMissileId===id);
+  }
+
+  el.btnBuy.addEventListener('click', ()=>{
+    if(!selectedId) return; const m = MISSILE_BY_ID[selectedId];
+    const locked = STATE.player.level < m.levelReq;
+    if(locked){ toast(`Requires Level ${m.levelReq}`); return; }
+    if(STATE.ownedMissiles.includes(m.id)){ toast('Already owned'); return; }
+    if(!spendCoins(m.price)){ toast('Not enough coins'); return; }
+    STATE.ownedMissiles.push(m.id); save();
+    renderShop(); selectMissile(m.id); toast(`Purchased ${m.name}`);
+  });
+
+  el.btnEq.addEventListener('click', ()=>{
+    if(!selectedId) return;
+    if(!STATE.ownedMissiles.includes(selectedId)) { toast('Not owned'); return; }
+    STATE.equippedMissileId = selectedId; save();
+    renderShop(); selectMissile(selectedId); toast('Equipped');
+  });
+
+  function showHangar(show){
+    el.wrap.style.display = show? 'block':'none';
+    el.wrap.setAttribute('aria-hidden', show? 'false':'true');
+    if(show){ refreshTopline(); renderShop(); selectedId ? selectMissile(selectedId) : selectMissile(STATE.equippedMissileId); }
+  }
+
+  el.close.addEventListener('click', ()=> showHangar(false));
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') showHangar(false); });
+
+  // Expose helpers globally for your game code
+  window.getEquippedMissileStats = getEquippedMissileStats;
+  window.getEquippedMissileDef   = getEquippedMissileDef;
+  window.addXP = addXP; window.setXP = setXP;
+  window.addCoins = addCoins; window.spendCoins = spendCoins;
+  window.showHangar = showHangar;
+window.onRunComplete = onRunComplete;
+  window.STATE_MSL = STATE; // dev peek
+
+  // Optional: handy debug button (remove in prod)
+  if(!document.getElementById('openHangarDebug')){
+    const k = document.createElement('button');
+    k.id='openHangarDebug'; k.textContent='Open Hangar';
+    k.style.cssText='position:fixed;right:12px;bottom:12px;z-index:9999;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#0f1a2a;color:#dff2ff;cursor:pointer;opacity:.6';
+    k.onmouseenter=()=>k.style.opacity='1'; k.onmouseleave=()=>k.style.opacity='.6';
+    k.onclick=()=>showHangar(true);
+    document.body.appendChild(k);
+  }
+
+  // ------- Example: adding new missiles at runtime (just push into MISSILES) -------
+  // MISSILES.push({
+  //   id:'vx9', name:'VX‑9 Vector', desc:'Extreme turn rate, short fuel.', price:420, levelReq:4,
+  //   base:{ speed:4.1, turnRate:3.2, accel:0.16, fuel:180, damage:22 }, tags:['maneuver']
+  // });
+
+})();
+
+</script>
+</body>
+</html>
