@@ -1,0 +1,3380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Boss Raider v2.71</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060912">
+<style>
+  /* Safe-area padding on iOS (so nothing hides under the notch) */
+  :root { 
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+    --safe-left: env(safe-area-inset-left);
+    --safe-right: env(safe-area-inset-right);
+  }
+  body { padding-left: max(0px, var(--safe-left)); padding-right: max(0px, var(--safe-right)); }
+</style>
+
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121826; --panel-2:#1a2030; --ink:#e6eefc;
+    --accent:#6aa0ff; --good:#6df0a6; --warn:#ffce6a; --bad:#ff6a6a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font:14px/1.3 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+    background:radial-gradient(1200px 700px at 60% 40%, #121826 0%, #0b0e14 60%, #070a0f 100%);
+    color:var(--ink);
+    overflow:hidden;
+  }
+  .hud{position:fixed; inset:12px; display:grid; grid-template-columns: 320px 1fr 280px; grid-template-rows:auto 1fr auto; gap:12px}
+  .panel{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:10px; backdrop-filter: blur(6px); box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .left, .right{display:grid; gap:10px}
+  .gamewrap{position:relative}
+  canvas#game{display:block; width:100%; height:100%; background: #0a0f19; border-radius:14px}
+
+  /* Play area slightly smaller, room for bottom HUD */
+  .gamewrap{grid-column:2; grid-row:1 / span 3; min-height: 520px}
+  @media(min-width:1200px){ .gamewrap{min-height: 600px} }
+
+  .topbar{display:flex; align-items:center; justify-content:space-between}
+  .bossbar{height:16px; background:#2a3145; border-radius:10px; overflow:hidden; box-shadow: inset 0 2px 8px rgba(0,0,0,.35)}
+  .bossbar > i{display:block; height:100%; width:100%; background:linear-gradient(90deg, #ff6a6a, #ff8b6a); transform-origin:left;}
+
+.goldBox{
+  margin-top:8px; padding:6px 10px;
+  background:#0b101d; border:1px solid #1f2a44; border-radius:10px;
+  color:#ffd56a; font:600 12px/1.2 Inter,system-ui,Arial;
+  display:inline-block;
+}
+
+#game {
+  transition: opacity .2s ease;  /* no bg-image transition needed */
+}
+#game.swapFX { opacity: 0; }
+
+
+//Mobile code
+/* Base: make the game container fill screen */
+#game, .game-wrap {
+  position: relative;
+  width: 100%;
+  height: 100dvh;            /* mobile-friendly viewport height */
+  overflow: hidden;
+}
+
+/* Gear overlay defaults (desktop) */
+.gear-overlay {
+  position: absolute;
+  right: 16px; top: 16px;
+  max-height: 80vh;
+  overflow: auto;
+  z-index: 20;
+}
+
+/* Mobile mode styles */
+:root.mobile {
+  /* Useful if you want slightly larger UI text on small screens */
+  --ui-scale: 1.05;
+}
+
+@media (max-width: 820px) {
+  /* Tag body as mobile if you prefer CSS-only, but we’ll also set :root.mobile in JS */
+  /* body { font-size: 16px; } */
+
+  /* Make gear overlay a bottom sheet that’s hidden by default */
+  .gear-overlay {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    top: auto;
+    max-height: 70vh;
+    transform: translateY(100%);
+    transition: transform .25s ease;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    margin: 0;
+    padding-bottom: calc(10px + var(--safe-bottom));
+    background: rgba(18,24,38,.92); /* glassy */
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -10px 30px rgba(0,0,0,.4);
+    z-index: 50;
+  }
+  .gear-overlay.open { transform: translateY(0%); }
+
+  /* Add a grab handle header inside overlay (optional) */
+  .gear-overlay .sheet-header{
+    position: sticky; top: 0; 
+    padding: 12px 16px; 
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sheet-handle{
+    width: 44px; height: 5px; border-radius: 999px; 
+    background: #ffffff33; 
+    margin: 4px 0 8px;
+  }
+
+  /* Mobile top bar for buttons */
+  .mobile-bar {
+    position: fixed;
+    left: 0; right: 0; top: 0;
+    display: flex; gap: 8px; align-items: center; justify-content: space-between;
+    padding: calc(8px + var(--safe-top)) 12px 8px;
+    z-index: 60;
+    pointer-events: none; /* lets clicks through except on buttons */
+  }
+  .mobile-bar .btn {
+    pointer-events: auto;
+  }
+
+  /* Keep canvas under bars */
+  #gameCanvas, canvas.game {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none; /* prevents scroll while dragging/aiming */
+  }
+}
+
+/* Simple button style you likely already have; included for completeness */
+.btn {
+  border-radius: 14px; padding: 10px 14px; font-weight: 700;
+  background: #7cf7e0; color: #081017; box-shadow: 0 6px 20px rgba(124,247,224,.18);
+}
+.btn.ghost { background: transparent; color: #cbd5e1; border: 1px solid #ffffff22; }
+
+
+
+/* GCD bar */
+#gcd{
+  position:absolute; left:50%; bottom:330px; transform:translateX(-50%);
+  width:360px; height:10px; border-radius:999px;
+  background:rgba(255,255,255,.08); box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;
+  overflow:hidden; opacity:0; transition:opacity .15s ease; pointer-events:none; z-index:50;
+}
+#gcd.active{ opacity:1; }
+#gcd .fill{
+  width:100%; height:100%; transform-origin:left;
+  transform:scaleX(0); /* we’ll set it dynamically (1 → 0) */
+  background:linear-gradient(90deg, #58a6ff, #ff6a3a);
+}
+#gcd .t{
+  position:absolute; top:-20px; left:50%; transform:translateX(-50%);
+  font:600 12px/1.1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6);
+}
+
+/* Optional: dim/lock spell buttons during GCD */
+.spell.locked{ filter:grayscale(.6) brightness(.85); opacity:.65; }
+.spell.locked .keycap{ opacity:.7; }
+
+.hotkey{
+  position: relative;
+  width: 54px; height: 54px;
+  border-radius: 12px;
+  background: #0f1729;
+  color: #cdd7ff;
+  display: grid; place-items: center;
+  font: 600 16px/1.2 Inter, system-ui, sans-serif;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 4px 12px rgba(0,0,0,.25);
+  /* GCD vars */
+  --gcdp: 0;        /* 0..100 progress (remaining) */
+  --gcdA: 0;        /* 0/1 active toggle for opacity */
+}
+
+/* Sweep ring */
+.hotkey::after{
+  content:"";
+  position:absolute; inset:-3px;
+  border-radius: 14px;
+  background:
+    conic-gradient(#6aa0ff calc(var(--gcdp)*1%), transparent 0);
+  /* Hollow it out so it's just a ring */
+  -webkit-mask:
+    radial-gradient(farthest-side, transparent calc(100% - 6px), #000 0);
+          mask:
+    radial-gradient(farthest-side, transparent calc(100% - 6px), #000 0);
+  opacity: var(--gcdA);
+  transition: opacity .12s linear;
+  pointer-events: none;
+}
+/* Circular GCD sweep ring */
+.spell::before {
+  content:"";
+  position:absolute; inset:-2px;
+  border-radius:50%;
+  background:
+    conic-gradient(var(--accent) calc(var(--gcdp,0)*1%), transparent 0);
+  -webkit-mask:
+    radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+          mask:
+    radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+  opacity: var(--gcdA,0);
+  transition: opacity .12s linear;
+  pointer-events:none;
+}
+
+
+/* Optional: subtle gray fill while on GCD */
+.hotkey::before{
+  content:"";
+  position:absolute; inset:0; border-radius:12px;
+  background: rgba(0,0,0,.25);
+  opacity: calc(var(--gcdA)*.6);
+  transition: opacity .12s linear;
+  pointer-events: none;
+}
+/* === Sell Bin === */
+.sellPanel{ margin-top:10px; }
+.sellBin{
+  background:#0b101d; border:1px dashed #4e2a2a; border-radius:12px;
+  min-height:56px; display:flex; align-items:center; justify-content:center;
+  text-align:center; padding:8px; color:#d7cfcf; font:12px/1.3 Inter,system-ui,Arial;
+  transition:border-color .15s ease, background .15s ease, color .15s ease;
+}
+.sellBin.dragOver{ border-color:#ff7a7a; background:#1a0f12; color:#ffd6d6; }
+.sellBin.success{ border-color:#6df0a6; background:#0f1a14; color:#c8ffd9; }
+.sellBin.error{ border-color:#ff8282; background:#1a0f10; color:#ffd0d0; }
+
+.stageOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  bottom:230px;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  pointer-events: none;
+  z-index: 999;
+  animation: fadeOut 2.5s ease forwards;
+}
+.stageOverlay .loot {
+  margin-top: 12px;
+  font-size: 20px;
+  font-weight: 500;
+}
+.stageOverlay .tName {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+@keyframes fadeOut {
+  0%   { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+
+
+  /* Bottom HUD inside the play area */
+  .bottom-hud{position:absolute; left:50%; transform:translateX(-50%); bottom:10px; z-index:10; width:min(980px, 92%); display:grid; gap:8px}
+  .hudrow{display:grid; gap:8px}
+  .castbar{height:18px; background:#1b2030; border-radius:10px; overflow:hidden; position:relative}
+  .castbar > i{display:block; height:100%; width:0%; background:linear-gradient(90deg, #6aa0ff, #6a78ff)}
+  .castbar .label{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .spells{
+  display:grid;
+  /* Fixed, smaller tiles instead of stretching (1fr) */
+  grid-template-columns: repeat(8, 56px);
+  gap:6px;
+  justify-content:center;
+}
+
+  .spell{position:relative; aspect-ratio:1/1; border-radius:12px; background:var(--panel-2); border:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none}
+  .spell[data-key]::after{content: attr(data-key); position:absolute; bottom:6px; right:8px; font-size:11px; opacity:.7}
+  .spell i{font-style:normal; font-weight:900; font-size:12px}
+  .spell[data-id="fireball"]{background: radial-gradient(120% 120% at 30% 30%, rgba(255,120,70,.35), transparent 35%), var(--panel-2)}
+  .spell[data-id="frostbolt"]{background: radial-gradient(120% 120% at 30% 30%, rgba(120,170,255,.35), transparent 35%), var(--panel-2)}
+  .spell[data-id="arcane"]{background: radial-gradient(120% 120% at 30% 30%, rgba(170,120,255,.35), transparent 60%), var(--panel-2)}
+  .spell[data-id="haste"]{background: radial-gradient(120% 120% at 30% 30%, rgba(120,255,210,.25), transparent 60%), var(--panel-2)}
+  .spell[data-id="power"]{background: radial-gradient(120% 120% at 30% 30%, rgba(255,230,120,.25), transparent 60%), var(--panel-2)}
+  .spell[data-id="icelance"]{background: radial-gradient(120% 120% at 30% 30%, rgba(160,220,255,.25), transparent 20%), var(--panel-2)}
+.spell[data-id="lightning"]{
+  background: radial-gradient(120% 120% at 30% 30%, rgba(255,214,92,.35), transparent 70%), var(--panel-2);
+}
+.spell[data-id="shadowbolt"]{
+  background: radial-gradient(120% 120% at 30% 30%, rgba(195,139,255,.35), transparent 30%), var(--panel-2);
+}
+.spell[data-id="scorch"]{
+  background: radial-gradient(120% 120% at 30% 30%, rgba(255,147,96,.35), transparent 20%), var(--panel-2);
+}
+/* === Spell tiles (match your gradient style) === */
+.spell[data-id="magicmissile"]{
+  background: radial-gradient(120% 120% at 30% 30%, rgba(150,180,255,.35), transparent 45%), var(--panel-2);
+}
+.spell[data-id="poisonbolt"]{
+  background: radial-gradient(120% 120% at 30% 30%, rgba(120,255,160,.35), transparent 35%), var(--panel-2);
+}
+
+/* === Optional: tooltip tinting (header color, subtle glow, border) === */
+/* If your tooltip container isn't .tip or doesn't carry data-id, swap selectors accordingly */
+.tip[data-id="magicmissile"]{
+  background: linear-gradient(180deg, rgba(150,180,255,.08), rgba(0,0,0,0));
+  border: 1px solid rgba(150,180,255,.35);
+  box-shadow: 0 0 12px rgba(150,180,255,.25);
+}
+
+
+
+  .spell[aria-disabled="true"]{opacity:.4; cursor:not-allowed}
+  .spell.pulse{animation:pulse .7s ease 2}
+  @keyframes pulse{ 0%{transform:scale(1)} 50%{transform:scale(1.08)} 100%{transform:scale(1)} }
+
+.spell .cdring{
+  position:absolute; inset:6px; border-radius:50%;
+  background:
+    conic-gradient(var(--accent) calc(var(--cdp,0)*1%), transparent 0);
+  -webkit-mask:
+    radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+          mask:
+    radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+  opacity: var(--cdA,0);
+  transition: opacity .12s linear;
+  pointer-events:none;
+  z-index:3;
+}
+
+.spell .cdtxt{
+  position:absolute; inset:0; display:grid; place-items:center;
+  font:700 12px/1 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;
+  color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  opacity: var(--cdA,0);
+  pointer-events:none;
+  transform: translateY(-12px);
+  z-index:4;
+}
+/* === Gear Sidebar Layout (refined) === */
+#gearWrap{
+  position:absolute; left:12px; top:322px; z-index:40;
+  width:630px; display:flex; gap:12px;
+  padding:10px; border-radius:14px;
+  background:rgba(10,16,28,.75);
+  border:1px solid #1e2a44;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  backdrop-filter:saturate(1.2) blur(6px);
+}
+
+/* Columns */
+#gearWrap .panelTitle{ 
+  font:600 12px/1.2 Inter,system-ui,Arial; 
+  letter-spacing:.5px; color:#cfe3ff; 
+  text-transform:uppercase; margin:2px 0 6px; 
+  opacity:.9;
+}
+#gearWrap .invCol{ width:190px; }
+#gearWrap .gearCol{ width:180px; }
+
+/* Inventory list */
+.invList{
+  display:grid; grid-template-columns:1fr; gap:8px;
+  max-height:420px; overflow:auto; padding-right:6px;
+}
+.invItem{
+  background:#0c1320; border:1px solid #223152;
+  border-radius:10px; padding:8px 10px;
+  cursor:grab; user-select:none;
+  transition:transform .06s ease, border-color .15s ease;
+}
+.invItem:hover{ transform:translateY(-1px); border-color:#2e4683; }
+.invItem:active{ cursor:grabbing; }
+.invItem .name{ font:600 13px/1.2 Inter,system-ui,Arial; margin-bottom:4px; }
+.invItem .meta{ font:11px/1.2 Inter,system-ui,Arial; opacity:.85; }
+.invItem .stats{ margin-top:6px; font:12px/1.2 Inter,system-ui,Arial; color:#cfe3ff; }
+
+/* Rarity colors */
+.rCommon{ color:#c9d1d9; }
+.rUncommon{ color:#79c07a; }
+.rRare{ color:#5aa9ff; }
+.rEpic{ color:#c07cff; }
+.rLegendary{ color:#ffb23d; text-shadow:0 0 6px rgba(255,178,61,.35); }
+/* Base rarity colors (keep your existing ones) */
+/* ... rCommon, rUncommon, rRare, rEpic, rLegendary ... */
+
+/* NEW: Mythic rainbow text + glow */
+.rMythic {
+  position: relative;
+  font-weight: 700;
+  background: conic-gradient(
+    from 0deg,
+    #ff4d4d, #ffb84d, #fff84d, #4dff77, #4dd5ff, #7a6aff, #ff4df0, #ff4d4d
+  );
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: mythicHue 4s linear infinite;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+}
+@keyframes mythicHue {
+  0%   { background-position:   0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
+}
+
+/* Optional: card/border flair for inventory rows using rarity class on container */
+.itemRow.rMythic, .invCard.rMythic {
+  box-shadow:
+    0 0 8px rgba(255,255,255,.15),
+    0 0 16px rgba(255, 77, 240, .25),
+    inset 0 0 12px rgba(255,255,255,.05);
+  border-image: conic-gradient(
+    #ff4d4d, #ffb84d, #fff84d, #4dff77, #4dd5ff, #7a6aff, #ff4df0, #ff4d4d
+  ) 1;
+  border: 1px solid transparent;
+}
+
+
+/* Gear grid */
+.gearGrid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+.gearSlot{
+  min-height:54px; padding:8px;
+  background:#0b101d; border:1px dashed #2b3a5f;
+  border-radius:12px; text-align:center;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:#9bb1d6; font:12px/1.25 Inter,system-ui,Arial;
+}
+.gearSlot.wide{ grid-column:span 2; }
+.gearSlot.filled{ border-style:solid; border-color:#395089; background:#0e1728; color:#cfe3ff; }
+.gearSlot .name{ font-weight:700; margin-bottom:2px; }
+.gearSlot .meta{ font-size:11px; opacity:.85; }
+.gearSlot .stats{ font-size:12px; color:#cfe3ff; margin-top:2px; }
+.gearSlot.dragOver{ outline:2px solid #6aa0ff; outline-offset:2px; }
+
+
+/* Stats panel */
+.statsBox{
+  margin:8px auto 0;              /* <— auto left/right centers the box */
+  background:#0b101d;
+  border:1px solid #1f2a44;
+  border-radius:12px;
+  padding:8px;
+  color:#cfe3ff;
+  font:13px/1.5 Inter,system-ui,Arial;
+  width: fit-content;             /* shrink to content so centering is visible */
+  max-width: 100%;                /* don’t overflow */
+}
+.statsBox .row{ display:flex; justify-content:space-between; padding:2px 0; }
+.statsBox .row:not(:last-child){ border-bottom:1px solid rgba(255,255,255,.06); }
+
+/* Tooltips (tidy + edge-clamped) */
+.tooltip{
+  position:fixed; pointer-events:none;
+  background:#0b101d; border:1px solid #2b3a5f; border-radius:8px;
+  padding:8px 10px; color:#cfe3ff; font:12px/1.35 Inter,system-ui,Arial;
+  z-index:1000; max-width:260px; box-shadow:0 8px 24px rgba(0,0,0,.35);
+}
+.tooltip .tName{ font-weight:700; margin-bottom:4px; }
+.tooltip .tMeta{ opacity:.85; margin-bottom:4px; }
+
+/* Make sure Notes/XP under the sidebar don’t peek through */
+#gearWrap + * { pointer-events:auto; }
+
+
+
+  .badges{display:flex; gap:8px; flex-wrap:wrap}
+  .badge{--glow:#6aa0ff; position:relative; padding:6px 8px; border-radius:9px; border:1px solid rgba(255,255,255,.12); background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)); box-shadow:0 0 16px var(--glow) inset; font-size:12px}
+
+  .log{max-height:160px; height:160px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0c111a; border-radius:12px; padding:8px; border:1px solid rgba(255,255,255,.06)}
+  .log b{color:#fff}
+  .dmg{color:#ff9988}
+  .crit{color:#ffd37a}
+
+
+/* ========== Layout: give the left rail more width, trim center slightly ========== */
+.hud{
+  grid-template-columns: 630px minmax(620px,1fr) 300px;  /* was 320px 1fr 280px */
+}
+
+/* Make the left column a tidy vertical stack and scroll independently if tall */
+.left{
+  display: grid;
+  gap: 10px;
+  grid-auto-rows: min-content;
+  overflow: hidden;               /* clip inner overflow */
+}
+.left.panel{
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* Subtle section separators / headings */
+.left h3{
+  margin: 6px 0 2px;
+  font: 700 12px/1.2 Inter,system-ui;
+  letter-spacing: .2px;
+  opacity: .9;
+}
+
+/* XP cluster spacing */
+#levelWrap{ margin: 4px 0 4px 0 !important; }
+#xpBar{ width: 100% !important; height: 10px !important; border-radius: 8px !important; }
+
+/* Stat line under “Mage” — keep it crisp */
+#statLine{ margin-top:6px !important; opacity:.9; }
+
+/* Badges: make them breathe less and wrap nicely */
+.badges{ gap:6px; }
+.badge{ padding:5px 7px; border-radius:8px; font-size:11px; }
+
+/* Inventory reorder hints */
+.invItem.dragTop    { box-shadow: 0 -2px 0 0 var(--accent) inset; }
+.invItem.dragBottom { box-shadow: 0  2px 0 0 var(--accent) inset; }
+
+
+
+
+
+  /* Tooltip */
+  .tooltip{position:fixed; pointer-events:none; z-index:9999; background:#111626; color:var(--ink); padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.12); max-width:280px; box-shadow:0 6px 26px rgba(0,0,0,.4); font-size:13px}
+  .tooltip .t{font-weight:800; margin-bottom:4px}
+  .tooltip .s{opacity:.8}
+</style>
+</head>
+<body>
+  <div class="hud">
+    <div class="left panel">
+  <div class="topbar">
+    <div style="font-weight:800">Mage</div>
+    <div id="statLine" style="margin-top:6px;font:12px/1.2 Inter,system-ui;">
+      <span id="statTxt"></span>
+    </div>
+  </div>
+
+  <h3 style="margin:10px 0 6px">Buffs & Debuffs</h3>
+  <div class="badges" id="badges"></div>
+
+  <div id="levelWrap" style="margin:6px 0 2px 0; font:600 14px/1 Inter,system-ui,sans-serif;">
+    <span id="levelTxt">Lv 1</span>
+  </div>
+
+  <!-- XP BAR (closed properly) -->
+  <div id="xpBar" style="position:relative;width:100%;height:10px;background:#121a28;border:1px solid #2a3a5a;border-radius:6px;overflow:hidden;">
+    <div id="xpFill" style="position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:linear-gradient(90deg,#3d7cff,#6ad0ff);"></div>
+  </div>
+
+      </div>
+
+<!-- Global Cooldown UI -->
+<div id="gcd">
+  <div class="fill"></div>
+  <span class="t"></span>
+</div>
+
+
+    <div class="gamewrap panel">
+      <canvas id="game"></canvas>
+      <!-- Bottom HUD inside play area -->
+      <div class="bottom-hud">
+        <div class="castbar" aria-hidden="true" id="castbar"><i></i><div class="label" id="castlabel"></div></div>
+        <div class="spells" id="spells"></div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <div class="right panel">
+      <div class="row" style="margin-bottom:8px">
+        <div style="font-weight:800">Boss: The Raid Dummy</div>
+      </div>
+      <div class="bossbar"><i id="bosshp"></i></div>
+      <div style="margin-top:10px; display:grid; gap:6px">
+        <div class="row"><span>Boss HP</span><b id="bosshptext">100%</b></div>
+        <div class="row"><span>Raid DPS</span><b id="raiddps">0</b></div>
+        <div class="row"><span>Your DPS</span><b id="yourdps">0</b></div>
+<button id="resetLevelBtn" class="btn small danger">Reset Level</button>
+<div id="goldPanel" class="goldBox">Gold: <b id="goldVal">0</b></div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip" style="display:none"></div>
+
+<!-- ==== INVENTORY + GEAR SIDEBAR ==== -->
+<div id="gearWrap">
+    <div class="invCol">
+      <div class="panelTitle">Inventory</div>
+      <div id="inventory" class="invList"></div>
+      <div class="sellPanel">
+        <div class="panelTitle">Sell</div>
+        <div id="sellBin" class="sellBin" aria-label="Drag items here to sell">Drag items here to sell</div>
+      </div>
+    </div>
+
+
+
+<div class="gearCol">
+<div class="panelTitle">Gear</div>
+<div id="gearSlots" class="gearGrid">
+<!-- Row 1 -->
+<div class="gearSlot" data-slot="head">Head</div>
+<div class="gearSlot" data-slot="neck">Neck</div>
+<div class="gearSlot" data-slot="chest">Chest</div>
+<div class="gearSlot" data-slot="legs">Legs</div>
+<!-- Row 2 -->
+<div class="gearSlot" data-slot="gloves">Gloves</div>
+<div class="gearSlot" data-slot="boots">Boots</div>
+<div class="gearSlot" data-slot="ring1">Ring 1</div>
+<div class="gearSlot" data-slot="ring2">Ring 2</div>
+<!-- Row 3 -->
+<div class="gearSlot wide" data-slot="weapon">Weapon</div>
+<div class="gearSlot wide" data-slot="offhand">Off‑hand</div>
+</div>
+
+
+<div class="panelTitle mt8">Stats</div>
+<div id="statBlock" class="statsBox"></div>
+<!-- Mobile top bar -->
+<div class="mobile-bar" id="mobileBar" style="display:none">
+  <button class="btn ghost" id="btnRotateHint" style="display:none">Rotate for landscape</button>
+  <div style="flex:1"></div>
+  <button class="btn" id="btnGear">Gear</button>
+</div>
+
+<!-- Your existing gear overlay -->
+<div class="gear-overlay" id="gearOverlay">
+  <div class="sheet-header"><div class="sheet-handle"></div></div>
+  <!-- existing gear content goes here -->
+</div>
+
+</div>
+</div>
+
+<script>
+const state = {
+    crit: .10, haste: 0,
+    cds: {},
+    cdTotal: {},
+    buffs: {},
+    dots: [], // {name, dpt, interval, next, until, color}
+   dpsMe:   { sum: 0, t0: performance.now()/1000, window: 10, samples: [] },
+dpsRaid: { sum: 0, t0: performance.now()/1000, window: 10, samples: [] },
+
+  };
+
+// ---- Drag payload helpers ----
+function setDragData(ev, data){
+  try { ev.dataTransfer.setData('application/x-br-item', JSON.stringify(data)); } catch(e){}
+  if (data.id) ev.dataTransfer.setData('text/plain', data.id); // fallback
+  ev.dataTransfer.effectAllowed = 'move';
+}
+function getDragData(ev){
+  const raw = ev.dataTransfer.getData('application/x-br-item');
+  if (raw) { try { return JSON.parse(raw); } catch(e){} }
+  const id = ev.dataTransfer.getData('text/plain');
+  return id ? { source:'inv', id } : null;
+}
+// --- Safe player level (tolerates old fields) ---
+function getPlayerLevel(){
+  return (
+    (state.player && (state.player.level|0)) ||
+    (state.playerLevel|0) ||
+    (state.level|0) ||
+    1
+  );
+}
+
+
+
+// ==== Gear/Inventory State ====
+state.inv = state.inv || []; // array of items
+state.gear = state.gear || { head:null, neck:null, chest:null, legs:null, gloves:null, boots:null, ring1:null, ring2:null, weapon:null, offhand:null };
+state.baseStats = state.baseStats || { STR:0, INT:0, AGI:0, SP:0, Crit:0, Haste:0, cdrPct:0, RaidStrength:0 };
+state.totalStats = state.totalStats || { ...state.baseStats };
+
+
+
+// Slots, rarities, and allowed stats per slot (weights lightly bias primaries)
+const SLOTS = ["head","neck","chest","legs","gloves","boots","ring1","ring2","weapon","offhand"];
+const RARITY = [
+{ key:"Common", cls:"rCommon", mult:1.00, affix:[1,1], weight:480 },
+{ key:"Uncommon", cls:"rUncommon", mult:1.15, affix:[1,2], weight:280 },
+{ key:"Rare", cls:"rRare", mult:1.35, affix:[2,3], weight:160 },
+{ key:"Epic", cls:"rEpic", mult:1.65, affix:[2,4], weight:64 },
+{ key:"Legendary", cls:"rLegendary", mult:2.10, affix:[3,5], weight:16 },
+{ key:"Mythic",    cls:"rMythic",    mult:2.60, affix:[4,6], weight:4   },
+];
+
+
+const STAT_KEYS = ["STR","INT","AGI","SP","Crit","Haste","cdrPct","RaidStrength"]; // +Haste
+
+const SLOT_PREF = {
+  weapon: { SP:3, STR:3, AGI:3, INT:2, Crit:2, Haste:2, RaidStrength:1.0 },
+  offhand:{ SP:2, INT:2, STR:1, AGI:1, Crit:2, Haste:2, cdrPct:1.2, RaidStrength:0.8 },
+  head:   { INT:2, STR:1, AGI:1, SP:1, Crit:1, Haste:2, RaidStrength:0.8 },
+  neck:   { Crit:2, SP:2, INT:1, STR:1, AGI:1, Haste:2, cdrPct:1.2, RaidStrength:1.6 },
+  chest:  { STR:2, INT:2, AGI:2, SP:1, Crit:1, Haste:1, RaidStrength:0.6 },
+  legs:   { STR:2, INT:2, AGI:2, SP:1, Crit:1, Haste:1, RaidStrength:0.6 },
+  gloves: { AGI:2, STR:1, INT:1, SP:1, Crit:1, Haste:2, RaidStrength:1.0 },
+  boots:  { AGI:2, STR:1, INT:1, SP:1, Crit:1, Haste:2, RaidStrength:0.8 },
+  ring1:  { Crit:2, SP:2, STR:1, INT:1, AGI:1, Haste:2, cdrPct:1.2, RaidStrength:1.8 },
+  ring2:  { Crit:2, SP:2, STR:1, INT:1, AGI:1, Haste:2, cdrPct:1.2, RaidStrength:1.8 },
+};
+
+
+
+
+// Name pools (feel free to expand)
+const NAMES = {
+  head:["Hood","Helm","Circlet","Visage","Cowl","Diadem","Crown"],
+  neck:["Amulet","Pendant","Talisman","Medallion","Gorget","Charm"],
+  chest:["Robe","Cuirass","Tunic","Hauberk","Vestments","Brigandine"],
+  legs:["Legwraps","Greaves","Pants","Chausses","Legguards","Trousers"],
+  gloves:["Gloves","Grips","Gauntlets","Handwraps","Fistguards","Mitts"],
+  boots:["Boots","Sandals","Sabatons","Greaves","Striders","Treads"],
+  ring1:["Ring","Band","Seal"],
+  ring2:["Ring","Loop","Signet"],
+  weapon:["Wand","Sword","Dagger","Staff","Scepter","Glaive","Scythe"],
+  offhand:["Tome","Shield","Focus","Lantern","Orb","Codex"],
+};
+
+
+
+// ======= Tiny RPG core (single-file) =======
+(function(){
+  const $ = sel => document.querySelector(sel);
+  const el = id => document.getElementById(id);
+  const logEl = el('log');
+  const castbar = el('castbar');
+  const castfill = castbar.querySelector('i');
+  const castlabel = el('castlabel');
+  const bossBar = el('bosshp');
+  const bossHpText = el('bosshptext');
+  const yourDpsEl = el('yourdps');
+  const raidDpsEl = el('raiddps');
+  const badges = el('badges');
+  const tooltip = el('tooltip');
+// --- WoW-like spell queue window (seconds)
+const QUEUE_WINDOW = 0.45;
+let buffered = null; // holds a single spell, only if pressed within the window
+
+function getBossAimPoint(){
+  const b = world.boss;
+  const bx = (typeof b.x === 'function' ? b.x() : b.x);
+  const by = (typeof b.y === 'function' ? b.y() : b.y);
+  const r  = b.r || 60;          // boss visual radius if you have one
+  const lift = b.aimLift ?? r*5.45; // aim a bit above center (chest)
+  return { x: bx, y: by - lift };
+}
+
+
+let kills = 0, bossIndex = 0;
+// Simple HP ramp (tweak the numbers to taste)
+const HP0 = 24000;           // first boss base HP
+const HP_STEP = 3000;        // add per-index
+const HP_TIER = (i) => HP0 + i * HP_STEP;
+
+const bossPool = [
+  // row 1
+  { sprite:'boss1',  name:'Ironhide Ravager',   baseHP: HP_TIER(0),  color:'#6f6f78' },
+  { sprite:'boss2',  name:'Ashwing Drake',      baseHP: HP_TIER(1),  color:'#4a2a2a' },
+  { sprite:'boss3',  name:'Bone-Titan',         baseHP: HP_TIER(2),  color:'#c2a375' },
+  { sprite:'boss4',  name:'Mire Ooze',          baseHP: HP_TIER(3),  color:'#46c06e' },
+  { sprite:'boss5',  name:'Magma Colossus',     baseHP: HP_TIER(4),  color:'#ff7a3a' },
+  { sprite:'boss6',  name:'Viridian Colossus',  baseHP: HP_TIER(5),  color:'#2e8b57' },
+  { sprite:'boss7',  name:'Dreadshell Behemoth',baseHP: HP_TIER(6),  color:'#a18555' },
+
+  // row 2
+  { sprite:'boss8',  name:'Warborn Brute',      baseHP: HP_TIER(7),  color:'#8b5a2b' },
+  { sprite:'boss9',  name:'Tidecaller Wyvern',  baseHP: HP_TIER(8),  color:'#3fb5d6' },
+  { sprite:'boss10', name:'Umbral Howler',      baseHP: HP_TIER(9),  color:'#20232a' },
+  { sprite:'boss11', name:'Shadow Mauler',      baseHP: HP_TIER(10), color:'#1a1c22' },
+  { sprite:'boss12', name:'Grove Ancient',      baseHP: HP_TIER(11), color:'#9a7b2f' },
+  { sprite:'boss13', name:'Grove Stalker',      baseHP: HP_TIER(12), color:'#6c4a1b' },
+  { sprite:'boss14', name:'Deepwater Naga',     baseHP: HP_TIER(13), color:'#44c1cf' },
+
+  // row 3
+  { sprite:'boss15', name:'Night Wraith',       baseHP: HP_TIER(14), color:'#1a1a1f' },
+  { sprite:'boss16', name:'Abyssal Fiend',      baseHP: HP_TIER(15), color:'#6b1c6e' },
+  { sprite:'boss17', name:'Emberfang Alpha',    baseHP: HP_TIER(16), color:'#b54a2a' },
+  { sprite:'boss18', name:'Cinderclaw Alpha',   baseHP: HP_TIER(17), color:'#a03f20' },
+  { sprite:'boss19', name:'Razorback Devourer', baseHP: HP_TIER(18), color:'#6e6b6b' },
+  { sprite:'boss20', name:'Leviathan Serpent',  baseHP: HP_TIER(19), color:'#2e8a7a' },
+  { sprite:'boss21', name:'Void Warlock',       baseHP: HP_TIER(20), color:'#b9a8ff' },
+];
+
+let boss = null;
+
+function spawnBoss(scale=1){
+  const t = bossPool[bossIndex % bossPool.length]; bossIndex++;
+  const hp = Math.round(t.baseHP * scale);
+setStage(bossIndex);
+  // drive the on-screen HP source
+  world.boss.max = hp;
+  world.boss.hp  = hp;
+
+  boss = { name: t.name, maxHP: hp, hp: hp, color: t.color, dead:false };
+  clearBossState();
+  combatLog?.(`A new foe appears: ${boss.name} — ${hp.toLocaleString()} HP!`);
+  
+}
+
+function clearBossState(){
+  // clear debuffs, projectiles, castbars, etc. (no-ops if not defined)
+  // reset raid timers so nobody “double swings” on spawn
+  const now = performance.now()/1000;
+  const grace = 2.0;  // seconds of downtime before raid swings again
+
+  for (const m of raid.npcs){
+    // base next swing is after grace + random swing interval
+    m.next = now + grace + randRange(0.2, m.swing * 1.2);
+  }
+}
+
+function calcCDR(){
+  const cap = 0.85;                  // was 0.50
+  const val = (state.totalStats?.cdrPct || 0) / 100;
+  return Math.max(0, Math.min(cap, val));
+}
+
+function fmt(n){ return (n|0).toLocaleString('en-US'); }
+
+function isPercentStat(k){ return k === 'Crit' || k === 'Haste' || k === 'CDR'; }
+
+function uid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+function pick(arr){ return arr[(Math.random()*arr.length)|0]; }
+function weightedPick(list){
+const total = list.reduce((s,x)=>s+x.weight,0);
+let r = Math.random()*total;
+for(const x of list){ if((r-=x.weight) <= 0) return x; }
+return list[list.length-1];
+}
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+function rollRarity(){ return weightedPick(RARITY); }
+
+
+function rollAffixKeys(slot, count){
+const prefs = SLOT_PREF[slot] || {};
+// Build weighted pool from STAT_KEYS + prefs
+const pool = [];
+for(const k of STAT_KEYS){ pool.push({k, w:(prefs[k]||1)}); }
+const picks = new Set();
+while(picks.size < count && picks.size < pool.length){
+const sum = pool.reduce((s,p)=>s+p.w,0);
+let r = Math.random()*sum;
+for(const p of pool){ if((r-=p.w)<=0){ picks.add(p.k); break; } }
+}
+return [...picks];
+}
+
+function randInt(a,b){ return (a + Math.floor(Math.random()*(b-a+1))); }
+
+
+
+function statRollFor(level, rarityMult){
+  const L = Math.max(1, level|0);
+  const base = 1 + Math.floor(L * 1.25);
+  const out  = Math.round(base * (rarityMult || 1));
+  return Math.max(1, out|0);
+}
+
+
+
+function rollItem(level, slot){
+  // 1) Resolve the *actual* L we should roll around
+  const L = Math.max(1, (level|0) || getPlayerLevel());
+
+  const rar = rollRarity();
+  const nameCore = pick(NAMES[slot] || [slot]);
+
+  // 2) Gentle bias: most at L, then L+1, some L+2, little at L-1
+  const offsets = [ -1, 0, +1, +2 ];
+  const weights = [  1, 5,  4,  2 ]; // tweak to taste
+  const weightSum = weights.reduce((s,w)=>s+w,0);
+  let r = Math.random()*weightSum, off = 0;
+  for(let i=0;i<weights.length;i++){ if((r-=weights[i])<=0){ off=offsets[i]; break; } }
+
+  // Upper bound at L+2 as you intended; never below 1
+  const lvl = clamp(L + off, 1, L + 2);
+
+  // 3) Affixes as before
+  const affixCount = (rar.affix[0] + (Math.random()*(rar.affix[1]-rar.affix[0]+1)|0));
+  const keys = rollAffixKeys(slot, affixCount);
+
+  const stats = {};
+  for(const k of keys){
+    let val = statRollFor(lvl, rar.mult);
+
+    if (isPercentStat(k)){
+      val = Math.max(1, Math.round(val * 0.4));
+      if (k === 'Crit')  val = clamp(val, 1, 40);
+      if (k === 'Haste') val = clamp(val, 1, 40);
+      if (k === 'CDR')   val = clamp(val, 1, 12);
+    }
+
+    const keyOut =
+      (k === 'critPct')  ? 'Crit'  :
+      (k === 'hastePct') ? 'Haste' :
+      (k === 'cdrPct')   ? 'CDR'   : k;
+
+    stats[keyOut] = (stats[keyOut]||0) + (val|0);
+  }
+
+  const name = `${rar.key} ${nameCore}`;
+  return {
+    id: uid(), slot, level: lvl,
+    rarity: rar.key, rarityCls: rar.cls,
+    name, stats,
+  };
+}
+
+
+// (Optional but recommended) show % on Crit/Haste in inventory text:
+function statStr(stats){
+  return Object.entries(stats).map(([k,v])=>{
+    return isPercentStat(k) ? `+${v}% ${k}` : `+${v} ${k}`;
+  }).join(', ');
+}
+
+// ==== Currency ====
+state.gold = state.gold ?? 0;
+
+// Fixed sell prices by rarity (added Mythic)
+const SELL_PRICE = {
+  Common: 5,
+  Uncommon: 12,
+  Rare: 30,
+  Epic: 80,
+  Legendary: 200,
+  Mythic: 500,  // NEW
+};
+
+
+
+let bossKO = false;
+
+// --- Player progression and Classes ---
+const CLASS = 'mage'; // future-proofing
+state.player = state.player || {
+  level: 1,
+  xp: 0,
+  xpNext: 77, // first ding
+};
+
+
+
+state.stats = state.stats || {
+  str: 5,
+  int: 12,
+  agi: 6,
+  sp:  24, // spellpower
+};
+function renderGold(){
+  const el = document.getElementById('goldVal');
+  if (el) el.textContent = fmt(state.gold|0);
+}
+
+// safety inits
+state.buffs  ||= {};   // { [id]: {id,t0,until,glow,mods} }
+state.auras  ||= {};   // { [id]: {color, until} }
+
+// player position helper (works if x/y are numbers or functions)
+function getPlayerXY(){
+  const px = (typeof world.player?.x === 'function') ? world.player.x() : (world.player?.x ?? 0);
+  const py = (typeof world.player?.y === 'function') ? world.player.y() : (world.player?.y ?? 0);
+  return [px, py];
+}
+
+
+loadGear();
+
+
+// Keep a clean BASE snapshot once; totals = base + gear
+state.baseStats ??= { ...state.stats };         // {str,int,agi,sp}
+state.totalStats ??= { ...state.baseStats };     // will be recomputed
+state.gearAdds   ??= { str:0, int:0, agi:0, sp:0, critPct:0, Haste:0, cdrPct:0, RaidStrength:0 };
+
+if (state.playerLevel == null) state.playerLevel = 1;
+
+// If you ever had `state.level` in older code, migrate it once:
+if (state.level != null && state.playerLevel == null) {
+  state.playerLevel = state.level|0;
+}
+// If you track "xpToNext" or have a helper, make sure UI reflects what we loaded.
+if (typeof updateXPUI === 'function') updateXPUI();
+if (typeof renderStats === 'function') renderStats();
+
+document.getElementById('resetLevelBtn')?.addEventListener('click', () => {
+  if (!state.player) return;
+
+  // Reset progression
+  state.player.level = 1;
+  state.player.xp = 0;
+  state.player.xpNext = xpForLevel(1);
+
+  // Also mirror if you still use playerLevel elsewhere
+  state.playerLevel = 1;
+
+  // Refresh UI
+  updateXPUI?.();
+  renderStats?.();
+  refreshGearUI?.();
+
+  // Save
+  saveGear?.();
+});
+
+// helpers
+function xpForLevel(n){
+  // soft JRPG-ish curve
+  return Math.floor(100 * Math.pow(n, 1.5) + 50);
+}
+
+function grantXP(n){
+  state.player.xp += Math.max(0, n|0);
+  // chain level-ups if a large award comes in
+  while(state.player.xp >= state.player.xpNext){
+    state.player.xp -= state.player.xpNext;
+    levelUp();
+  }
+  updateXPUI();
+}
+
+function levelUp(){
+  state.player.level++;
+  state.playerLevel = state.player.level;
+  state.player.xpNext = xpForLevel(state.player.level);
+
+   // per-level gains -> base
+  state.baseStats.int += 2;
+  state.baseStats.sp  += 6;
+  state.baseStats.agi += 1;
+
+
+
+combatLog(`✨ Level Up! You reached <b>Level ${state.player.level}</b>.`);
+
+  // little celebratory float near player
+  const px = world.player.x, py = (typeof world.player.y==='function'?world.player.y():world.player.y)-24;
+  world.floats.push({
+    x:px, y:py, vx: (Math.random()*2-1)*0.12, vy:-1.0,
+    txt:`LEVEL ${state.player.level}!`,
+    crit:true, from:'me', t:0, life:260, color:'#ffd54f'
+  });
+renderStats();
+saveGear();
+  // optional: brief screen shake or pulse
+  // pulseUI('#levelWrap');
+}
+
+
+// Crit: base 10% + 0.1% per AGI + gear/buff critPct (in % points), clamped to 75%
+function calcCritChance(){
+  const t = state.totalStats || state.stats;
+  const gearCrit = (state.gearAdds?.critPct || 0);
+  const buffCrit = (state.buffs?.crit?.mods?.critPct || 0);
+  const base = 0.10;
+  const fromAgi = (t.agi || 0) * 0.001;
+  const extra = (gearCrit + buffCrit) / 100;
+  return Math.min(0.75, base + fromAgi + extra);
+}
+
+// SP (eff): SP + 1.5*INT + 2 per level (your existing rule)
+function calcSpellPower(){
+  const t = state.totalStats || state.stats;
+  const p = state.player || {};
+  return (t.sp || 0) + (t.int || 0)*1.5 + (p.level || 1)*2;
+}
+
+// Core roll: uses spell.dmg range and an optional spell.coeff (default 1.0)
+function rollSpellDamage(sp){
+  const [a,b] = sp.dmg;
+  const base  = a + Math.random()*(b-a);
+  const coeff = (sp.coeff == null ? 1.0 : sp.coeff);
+  const spEff = calcSpellPower() * coeff;
+
+  // 1% more damage per 100 effective SP (i.e., out = base * (1 + spEff/100))
+  let out = base * (1 + spEff/100);
+
+  // Crit
+  let isCrit = false;
+  if (Math.random() < calcCritChance()){
+    out *= 2;
+    isCrit = true;
+  }
+  return { dmg: out, isCrit };
+}
+
+function updateXPUI(){
+  const lvl = state.player.level;
+  const have = state.player.xp;
+  const need = state.player.xpNext;
+  const p = Math.max(0, Math.min(1, need ? have/need : 1));
+  const elL = document.getElementById('levelTxt');
+  const elF = document.getElementById('xpFill');
+  if(elL) elL.textContent = `Lv ${lvl} • ${have}/${need} XP`;
+  if(elF) elF.style.transform = `scaleX(${p})`;
+}
+
+function renderStats(){
+  // Base (fallbacks preserved) — percentage stats stored as POINTS
+  const base = state.baseStats || state.stats || {str:0,int:0,agi:0,sp:0,critPct:0,hastePct:0,cdrPct:0};
+
+  // Aggregate gear adds (read both lower/UPPER keys)
+  const adds = { str:0, int:0, agi:0, sp:0, critPct:0, hastePct:0, cdrPct:0, raidStrength:0 };
+
+  for (const slot of Object.keys(state.gear || {})){
+    const it = state.gear[slot]; if (!it || !it.stats) continue;
+    const st = it.stats;
+
+    adds.str      += (st.str     ?? st.STR     ?? 0);
+    adds.int      += (st.int     ?? st.INT     ?? 0);
+    adds.agi      += (st.agi     ?? st.AGI     ?? 0);
+    adds.sp       += (st.sp      ?? st.SP      ?? 0);
+    adds.critPct  += (st.critPct ?? st.Crit    ?? 0);
+    adds.hastePct += (st.hastePct ?? st.Haste  ?? 0);
+    adds.cdrPct   += (st.cdrPct   ?? st.CDR    ?? 0); // NEW
+    adds.raidStrength += (st.raidStrength ?? st.RaidStrength ?? 0);
+  }
+
+  // Totals = base + gear (POINTS for % stats)
+  const tot = {
+    str: (base.str||0) + adds.str,
+    int: (base.int||0) + adds.int,
+    agi: (base.agi||0) + adds.agi,
+    sp:  (base.sp ||0) + adds.sp,
+
+    critPct:  (base.critPct  || 0) + adds.critPct,
+    hastePct: (base.hastePct || 0) + adds.hastePct,
+    cdrPct:   (base.cdrPct   || 0) + adds.cdrPct, // NEW
+    raidStrength: (base.raidStrength || 0) + adds.raidStrength,
+  };
+
+  state.gearAdds   = adds;
+  state.totalStats = tot;
+
+  // ===== Derived stats =====
+  const lvl    = (state.player?.level) || state.playerLevel || 1;
+  const spEff  = ((tot.sp||0) + (tot.int||0)*1.5 + lvl*2) | 0;
+
+  // Crit (%): base + AGI + buffs + gear
+  const baseCrit = 0.10;
+  const fromAgi  = (tot.agi||0) * 0.001;
+  const buffCrit = (state.buffs?.crit?.mods?.critPct || 0) / 100;
+  const gearCrit = (tot.critPct || 0) / 100;  // points → fraction
+  const critFrac = Math.min(0.75, baseCrit + fromAgi + buffCrit + gearCrit);
+  const cc       = Math.round(critFrac * 100); // %
+
+  // Haste (%): gear/base (fraction) + buff (fraction)
+  const gearBaseHasteFrac = (tot.hastePct || 0) / 100;
+  const buffHasteFrac     = (state.buffs?.haste?.mods?.haste || 0);
+  const hasteFrac         = Math.min(0.75, gearBaseHasteFrac + buffHasteFrac);
+  const hh                = Math.round(hasteFrac * 1000) / 10; // one decimal
+
+  // CDR (%): show capped effective % from total points
+const cdrFracRaw  = (tot.cdrPct || 0) / 100;
+const cdrFracEff  = Math.min(0.85, Math.max(0, cdrFracRaw));
+const cdrDisp     = Math.round(cdrFracEff * 1000) / 10;
+
+
+  // Keep gameplay in sync (gear/base only; buffs added in getters)
+  state.haste = gearBaseHasteFrac;
+  state.cdr   = cdrFracRaw; // optional convenience; calcCDR() also works
+
+  // ===== Top line =====
+  const topEl = document.getElementById('statTxt');
+  if (topEl){
+    topEl.textContent =
+  `STR ${tot.str} • INT ${tot.int} • AGI ${tot.agi} • SP ${tot.sp} (Spell Damage ${spEff}) ` +
+  `• Crit ${cc}% • Haste ${hh}% • CDR ${cdrDisp}% • RaidStr ${tot.raidStrength||0}`;
+
+  }
+
+  // ===== Gear panel (adds + totals) =====
+  const addsParts = [];
+  if (adds.str)      addsParts.push(`STR +${adds.str}`);
+  if (adds.int)      addsParts.push(`INT +${adds.int}`);
+  if (adds.agi)      addsParts.push(`AGI +${adds.agi}`);
+  if (adds.sp)       addsParts.push(`SP +${adds.sp}`);
+  if (adds.critPct)  addsParts.push(`Crit +${Math.round(adds.critPct*10)/10}%`);
+  if (adds.hastePct) addsParts.push(`Haste +${Math.round(adds.hastePct*10)/10}%`);
+  if (adds.cdrPct)   addsParts.push(`CDR +${Math.round(adds.cdrPct*10)/10}%`); // NEW
+  if (adds.raidStrength) addsParts.push(`RaidStrength +${adds.raidStrength}`);
+  const addsText = addsParts.join(' • ');
+
+  const addsEl   = document.getElementById('gearAddsTxt');
+  const totalsEl = document.getElementById('gearTotalsTxt');
+
+  if (addsEl)   addsEl.textContent   = addsText || '—';
+  if (totalsEl) totalsEl.textContent =
+  `Totals → STR ${tot.str} • INT ${tot.int} • AGI ${tot.agi} • SP ${tot.sp} (eff ${spEff}) ` +
+  `• Crit ${cc}% • Haste ${hh}% • CDR ${cdrDisp}% • RaidStr ${tot.raidStrength||0}`;
+
+  // ===== Detailed stat block =====
+  const sb = document.getElementById('statBlock');
+  if (sb){
+    sb.innerHTML = '';
+   const ORDER = (typeof STAT_KEYS !== 'undefined' && STAT_KEYS?.length)
+  ? STAT_KEYS.map(k => String(k).toLowerCase())
+  : ['str','int','agi','sp','crit','haste','cdrpct','raidstrength'];
+
+
+    for (const key of ORDER){
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      let val;
+      if (key === 'crit' || key === 'critpct')       val = `${cc}%`;
+      else if (key === 'haste' || key === 'hastepct')val = `${hh}%`;
+      else if (key === 'cdr' || key === 'cdrpct')    val = `${cdrDisp}%`; // NEW
+      else if (key === 'raidstrength') val = (tot.raidStrength || 0);
+
+      else                                           val = (tot[key] || 0);
+
+      row.innerHTML = `<div>${key.toUpperCase()}</div><div>${val}</div>`;
+      sb.appendChild(row);
+    }
+  }
+}
+
+
+
+function grantRandomItem(){
+const slot = pick(SLOTS);
+const it = rollItem(undefined, slot);
+state.inv.push(it);
+renderInventory();
+toastDrop(it);
+  combatLog(`🎁 Loot: <span class="${it.rarityCls}">${it.name}</span> (Lvl ${it.level} • ${it.slot}) — ${statStr(it.stats)}`);
+return it; // <-- return the item
+}
+
+function statStr(stats){
+return Object.entries(stats).map(([k,v])=>`+${v} ${k}`).join(', ');
+}
+
+
+// tiny non-blocking save (optional but helps)
+let _saveTimer = 0;
+function saveGearSoon(){
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(()=> saveGear?.(), 120);
+}
+
+function renderInventory(){
+  const invEl = document.getElementById('inventory'); if(!invEl) return;
+
+  // ✅ Bind container-level handlers ONCE (was previously added per item)
+  if (!invEl._dndBound){
+    invEl._dndBound = true;
+
+    invEl.addEventListener('dragover', ev => {
+      ev.preventDefault();
+    });
+
+    invEl.addEventListener('drop', ev => {
+      ev.preventDefault();
+      const data = getDragData(ev);
+      if (!data) return;
+
+      if (data.source === 'inv'){
+        const fromIdx = state.inv.findIndex(x => x.id === data.id);
+        if (fromIdx < 0) return;
+        const [moved] = state.inv.splice(fromIdx, 1);
+        state.inv.push(moved);
+        renderInventory(); saveGearSoon();   // <- was saveGear()
+      } else if (data.source === 'gear'){
+        const fromSlot = data.slot;
+        const moved = state.gear[fromSlot];
+        if (!moved) return;
+        state.gear[fromSlot] = null;              // unequip
+        state.inv.push(moved);
+        renderGear(); renderInventory(); saveGearSoon();
+      }
+    });
+  }
+
+  invEl.innerHTML = '';
+
+  for (const it of state.inv){
+    const div = document.createElement('div');
+    div.className = 'invItem';
+    div.setAttribute('draggable','true');
+    div.dataset.itemId = it.id;
+    div.innerHTML = `
+      <div class="name ${it.rarityCls}">${it.name}</div>
+      <div class="meta">Lvl ${it.level} • ${it.slot}</div>
+      <div class="stats">${statStr(it.stats)}</div>
+    `;
+
+    attachDragEvents(div, it);
+    attachHoverTooltip(div, it);
+
+    // Row-level handlers — stop bubbling so container doesn't also fire
+    div.addEventListener('dragover', ev => {
+      ev.preventDefault();
+      ev.stopPropagation();                               // ✅ new
+      const mid = div.getBoundingClientRect().top + div.offsetHeight/2;
+      div.classList.toggle('dragTop',    ev.clientY <  mid);
+      div.classList.toggle('dragBottom', ev.clientY >= mid);
+    });
+
+    div.addEventListener('dragleave', ev => {
+      ev.stopPropagation();                               // ✅ new
+      div.classList.remove('dragTop','dragBottom');
+    });
+
+    div.addEventListener('drop', ev => {
+      ev.preventDefault();
+      ev.stopPropagation();                               // ✅ new
+      const data = getDragData(ev);
+      div.classList.remove('dragTop','dragBottom');
+      if (!data) return;
+
+      const targetId  = div.dataset.itemId;
+      const targetIdx = state.inv.findIndex(x => x.id === targetId);
+      const before    = ev.clientY < (div.getBoundingClientRect().top + div.offsetHeight/2);
+      let insertIdx   = before ? targetIdx : targetIdx + 1;
+
+      if (data.source === 'inv'){
+        const fromIdx = state.inv.findIndex(x => x.id === data.id);
+        if (fromIdx < 0 || fromIdx === insertIdx || state.inv[fromIdx]?.id === targetId) return;
+        const [moved] = state.inv.splice(fromIdx, 1);
+        if (fromIdx < insertIdx) insertIdx--; // account for removal
+        state.inv.splice(insertIdx, 0, moved);
+        renderInventory(); saveGearSoon();    // <- was saveGear()
+      } else if (data.source === 'gear'){
+        const fromSlot = data.slot;
+        const moved = state.gear[fromSlot];
+        if (!moved) return;
+        state.gear[fromSlot] = null;                // unequip
+        state.inv.splice(insertIdx, 0, moved);      // drop into inventory here
+        renderGear(); renderInventory(); saveGearSoon();
+      }
+    });
+
+    invEl.appendChild(div);
+  }
+}
+
+
+
+function renderGear(){
+const grid = document.getElementById('gearSlots'); if(!grid) return;
+for(const slot of SLOTS){
+const cell = grid.querySelector(`.gearSlot[data-slot="${slot}"]`);
+if(!cell) continue;
+const it = state.gear[slot];
+if(it){
+cell.classList.add('filled');
+cell.innerHTML = `<div class="name ${it.rarityCls}">${it.name}</div><div class="meta">Lvl ${it.level} • ${slot}</div><div class="stats">${statStr(it.stats)}</div>`;
+attachHoverTooltip(cell, it);
+cell.setAttribute('draggable','true');
+attachDragEvents(cell, it, { source:'gear', slot });
+
+}else{
+cell.classList.remove('filled');
+cell.textContent = slot.charAt(0).toUpperCase()+slot.slice(1);
+}
+}
+renderStats();
+}
+// Simple toast when loot drops
+function toastDrop(it){
+const el = document.createElement('div');
+el.className = 'tooltip';
+el.style.left = '16px';
+el.style.top = '16px';
+el.innerHTML = `<div class="tName ${it.rarityCls}">Loot: ${it.name}</div><div class="tMeta">Lvl ${it.level} • ${it.slot}</div><div>${statStr(it.stats)}</div>`;
+document.body.appendChild(el);
+setTimeout(()=>{ el.remove(); }, 1800);
+}
+
+
+function attachDragEvents(el, item, opts={}){
+  const source  = opts.source || 'inv';      // 'inv' | 'gear'
+  const fromSlot= opts.slot   || item.slot;  // for gear → which slot it came from
+  el.setAttribute('draggable','true');
+  el.addEventListener('dragstart', ev => {
+    setDragData(ev, { source, id:item.id, slot: fromSlot });
+    el.classList.add('dragging');
+    Tooltip.hide(el);
+  });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+}
+
+
+
+function bindTooltip(el, htmlBuilder){
+  let html = '';
+  el.addEventListener('mouseenter', e => { html = htmlBuilder(); Tooltip.show(el, html, e); });
+  el.addEventListener('mousemove',  e => Tooltip.move(e));
+  el.addEventListener('mouseleave', () => Tooltip.hide(el));
+  el.addEventListener('dragstart',  () => Tooltip.hide(el)); // dragging an item → hide
+}
+
+
+function getSellPrice(item){
+  return SELL_PRICE[item?.rarity] ?? 0;
+}
+
+function sellItemById(itemId){
+  const idx = state.inv.findIndex(it => it.id === itemId);
+  if (idx === -1) return { ok:false, msg:'Item not found' };
+  const it = state.inv[idx];
+  const gold = getSellPrice(it);
+  if (gold <= 0) return { ok:false, msg:'Unsellable' };
+
+ 
+  state.inv.splice(idx, 1);
+  state.gold = (state.gold|0) + gold;
+
+  renderInventory();
+  renderGold();
+
+  combatLog(`💰 Sold <span class="${it.rarityCls}">${it.name}</span> for <b>${gold}</b> gold.`);
+
+  // nice toast
+  Tooltip.show(document.body, `<div class="tName r${it.rarity}">Sold ${it.name}</div><div class="tMeta">+${gold} Gold</div>`);
+  setTimeout(()=>Tooltip.hide(), 900);
+
+  return { ok:true, gold, item:it };
+}
+
+function bindSellDropTarget(){
+  const bin = document.getElementById('sellBin');
+  if (!bin) return;
+
+  // Optional: show a tooltip when we hover the bin with an item (during drag)
+  let over = false;
+
+  bin.addEventListener('dragover', ev => {
+    ev.preventDefault();
+    bin.classList.add('dragOver');
+    over = true;
+  });
+
+  bin.addEventListener('dragleave', () => {
+    bin.classList.remove('dragOver');
+    over = false;
+  });
+
+  bin.addEventListener('drop', ev => {
+  ev.preventDefault();
+  bin.classList.remove('dragOver');
+
+  const data = getDragData(ev);
+  if (!data){ pulseSell(bin, 'error'); return; }
+
+  let it = null;
+
+  if (data.source === 'inv'){
+    it = state.inv.find(x => x.id === data.id);
+    if (!it) { pulseSell(bin, 'error'); return; }
+  } else if (data.source === 'gear'){
+    const fromSlot = data.slot;
+    it = state.gear[fromSlot];
+    if (!it) { pulseSell(bin, 'error'); return; }
+    // unequip into inventory first so sellItemById works as-is
+    state.gear[fromSlot] = null;
+    state.inv.push(it);
+    renderGear(); renderInventory();
+  }
+
+  const price = getSellPrice(it);
+  if (price <= 0){ pulseSell(bin, 'error'); return; }
+
+  const res = sellItemById(it.id);
+  if (res.ok){
+    pulseSell(bin, 'success');
+    bin.textContent = `Sold ${it.name} for +${price} Gold`;
+    setTimeout(()=>{ bin.textContent = 'Drag items here to sell'; }, 800);
+    saveGear();
+  } else {
+    pulseSell(bin, 'error');
+  }
+});
+
+
+  // When dragging over, if we can resolve the id, preview price
+  bin.addEventListener('dragenter', ev => {
+    const id = ev.dataTransfer?.getData('text/plain');
+    const it = state.inv.find(x => x.id === id);
+    if (it){
+      const price = getSellPrice(it);
+      Tooltip.show(bin, `<div class="t">Sell ${it.name}</div><div class="s">+${price} Gold</div>`, ev);
+    }
+  });
+
+  // Safety: hide tooltip when leaving the bin
+  bin.addEventListener('dragleave', ()=> Tooltip.hide(bin));
+}
+
+function pulseSell(el, kind){
+  el.classList.remove('success','error');
+  void el.offsetWidth; // reflow to restart animation
+  el.classList.add(kind);
+  setTimeout(()=> el.classList.remove(kind), 350);
+}
+
+
+
+// Gear usage:
+function attachHoverTooltip(el, item){
+  // store id so we can look it up later
+  el.dataset.itemId = item.id;
+
+  bindTooltip(el, () => {
+    // re-fetch the live item by id from inv or gear
+    const id = el.dataset.itemId;
+    let it = state.inv.find(x => x.id === id);
+    if (!it) {
+      for (const s of Object.keys(state.gear)) {
+        if (state.gear[s]?.id === id) { it = state.gear[s]; break; }
+      }
+    }
+    if (!it) return ''; // item no longer exists
+
+    return `
+      <div class="tName ${it.rarityCls}">${it.name}</div>
+      <div class="tMeta">Level ${it.level} • ${it.slot}</div>
+      <div>${statStr(it.stats)}</div>
+    `;
+  });
+}
+
+
+function bindGearDropTargets(){
+  const grid = document.getElementById('gearSlots'); if (!grid) return;
+
+  grid.querySelectorAll('.gearSlot').forEach(slotEl=>{
+    const toSlot = slotEl.dataset.slot;
+
+    slotEl.addEventListener('dragover', ev=>{
+      ev.preventDefault();
+      slotEl.classList.add('dragOver');
+    });
+
+    slotEl.addEventListener('dragleave', ()=>{
+      slotEl.classList.remove('dragOver');
+    });
+
+    slotEl.addEventListener('drop', ev=>{
+      ev.preventDefault();
+      slotEl.classList.remove('dragOver');
+
+      // Parse payload (supports getDragData helper; falls back to text/plain id)
+      let data = null;
+      try { data = getDragData?.(ev) || null; } catch(e){}
+      let src = data?.source || null;
+      let id  = data?.id || null;
+      let fromSlot = data?.slot || null;
+
+      if (!id){
+        const fallbackId = ev.dataTransfer.getData('text/plain');
+        if (fallbackId){ src = src || 'inv'; id = fallbackId; }
+      }
+      if (!src || !id){ pulse(slotEl, '#d55'); return; }
+
+      // Resolve the dragged item
+      let item = null;
+      if (src === 'inv'){
+        item = state.inv.find(x => x && x.id === id);
+      } else if (src === 'gear'){
+        item = state.gear[fromSlot];
+      }
+      if (!item){ pulse(slotEl, '#d55'); return; }
+
+      // Slot compatibility (allow ring ↔ ring)
+      const isRingMove = String(item.slot||'').startsWith('ring') && String(toSlot).startsWith('ring');
+      if (!(item.slot === toSlot || isRingMove)){
+        pulse(slotEl, '#d55');
+        return;
+      }
+
+      if (src === 'inv'){
+        // Equip from inventory (your equipItem pushes displaced item back to inv)
+        equipItem(item, toSlot);
+        if (isRingMove) item.slot = toSlot; // normalize ring slot on item
+        renderStats?.();
+        saveGear?.();
+        return;
+      }
+
+      if (src === 'gear'){
+        if (fromSlot === toSlot) return; // no-op
+
+        const moving    = state.gear[fromSlot];
+        const displaced = state.gear[toSlot] || null;
+
+        // Move/swap
+        state.gear[toSlot] = moving;
+        if (isRingMove) moving.slot = toSlot;
+
+        state.gear[fromSlot] = displaced;
+        if (displaced){
+          const displacedIsRing = String(displaced.slot||'').startsWith('ring');
+          const fromIsRing      = String(fromSlot).startsWith('ring');
+          if (displacedIsRing && fromIsRing) displaced.slot = fromSlot;
+        }
+
+        renderGear();
+        renderStats?.();
+        saveGear?.();
+      }
+    });
+  });
+}
+
+
+
+
+function pulse(el, color){
+el.animate([{outlineColor:color,outlineWidth:'2px'},{outlineWidth:'0px'}], {duration:300,easing:'ease-out'});
+}
+
+
+function equipItem(item, slot){
+// Remove from inventory
+state.inv = state.inv.filter(x=>x.id!==item.id);
+// If slot occupied, move to inventory
+if(state.gear[slot]){ state.inv.push(state.gear[slot]); }
+// Equip
+// Normalize rings: if dragging ring to ring1/2 but item is ring1/2, copy slot
+if(slot.startsWith('ring')) item.slot = slot;
+state.gear[slot] = item;
+renderInventory();
+renderGear();
+}
+
+renderInventory();
+renderGear();
+bindGearDropTargets();
+renderStats();
+
+function saveGear(){
+  try{
+    localStorage.setItem('br_inv',  JSON.stringify(state.inv));
+    localStorage.setItem('br_gear', JSON.stringify(state.gear));
+    localStorage.setItem('br_lvl', String(state.player?.level ?? 1));
+    localStorage.setItem('br_xp',   String(state.player?.xp ?? 0));
+    localStorage.setItem('br_gold', String(state.gold|0));
+    
+
+  }catch(e){}
+}
+
+function loadGear(){
+  try{
+    const inv  = JSON.parse(localStorage.getItem('br_inv')  || '[]');
+    const gear = JSON.parse(localStorage.getItem('br_gear') || '{}');
+
+const g = parseInt(localStorage.getItem('br_gold')||'0',10);
+  if (!isNaN(g)) state.gold = g;
+
+    // Avoid NaN if someone wrote junk into storage
+    const rawLvl = localStorage.getItem('br_lvl');
+    const lvl = Number.isFinite(+rawLvl) ? parseInt(rawLvl, 10) : 1;
+const rawXP = localStorage.getItem('br_xp');
+    const xp = Number.isFinite(+rawXP) ? parseInt(rawXP, 10) : 0;
+
+    // Merge with defaults so all slots exist
+    state.inv  = Array.isArray(inv) ? inv : [];
+    state.gear = { head:null, neck:null, chest:null, legs:null, gloves:null, boots:null, ring1:null, ring2:null, weapon:null, offhand:null, ...(gear||{}) };
+
+  state.player = state.player || { level:1, xp:0, xpNext:100 };
+    if (!Number.isNaN(lvl)) state.player.level = lvl;
+    state.player.xp = Math.max(0, xp|0);                     // ← default to 0
+    state.player.xpNext = xpForLevel(state.player.level); 
+
+
+    // Migration: ensure saved items have rarityCls (older saves might not)
+    state.inv.forEach(it => { if (it && !it.rarityCls) it.rarityCls = rarityClassFromKey(it.rarity); });
+    Object.keys(state.gear).forEach(slot => {
+      const it = state.gear[slot];
+      if (it && !it.rarityCls) it.rarityCls = rarityClassFromKey(it.rarity);
+    });
+  }catch(e){}
+}
+
+// Call on boot and after any equip/loot
+loadGear();
+renderStats();
+setInterval(saveGear, 4000);
+
+function recomputeTotalsFromGear(){
+  // Track gear contributions (items give percentage POINTS for Crit/Haste/CDR)
+  const adds = { str:0, int:0, agi:0, sp:0, critPct:0, hastePct:0, cdrPct:0, raidStrength:0 };
+
+  // Aggregate from equipped items
+  for (const slot of Object.keys(state.gear || {})){
+    const it = state.gear[slot];
+    if (!it || !it.stats) continue;
+    const st = it.stats;
+
+    // accept lower/UPPER variants gracefully
+    adds.str      += (st.str     ?? st.STR     ?? 0);
+    adds.int      += (st.int     ?? st.INT     ?? 0);
+    adds.agi      += (st.agi     ?? st.AGI     ?? 0);
+    adds.sp       += (st.sp      ?? st.SP      ?? 0);
+    adds.critPct  += (st.critPct ?? st.Crit    ?? 0);
+    adds.raidStrength += (st.raidStrength ?? st.RaidStrength ?? 0);
+
+    // Haste may arrive as 'Haste' or 'hastePct' (percentage POINTS)
+    adds.hastePct += (st.hastePct ?? st.Haste  ?? 0);
+
+    // CDR may arrive as 'CDR' or 'cdrPct' (percentage POINTS)
+    adds.cdrPct   += (st.cdrPct   ?? st.CDR    ?? 0);
+  }
+
+  state.gearAdds = adds;
+
+  // Base totals (your baseStats likely use lower-case keys, in POINTS for % stats)
+  const b = state.baseStats || {str:0,int:0,agi:0,sp:0,critPct:0,hastePct:0,cdrPct:0};
+
+  state.totalStats = {
+    str: (b.str||0) + adds.str,
+    int: (b.int||0) + adds.int,
+    agi: (b.agi||0) + adds.agi,
+    sp:  (b.sp ||0) + adds.sp,
+    raidStrength: (b.raidStrength||0) + adds.raidStrength,
+
+    // Keep POINTS for panels/inspection
+    critPct:  (b.critPct  || 0) + adds.critPct,
+    hastePct: (b.hastePct || 0) + adds.hastePct,
+    cdrPct:   (b.cdrPct   || 0) + adds.cdrPct,
+  };
+
+  // Gameplay fractions used in systems (buffs are added elsewhere in getters)
+  const baseHasteFrac = (b.hastePct || 0) / 100;
+  const gearHasteFrac = (adds.hastePct || 0) / 100;
+  state.haste = baseHasteFrac + gearHasteFrac;
+
+  // Optional: expose state.cdr if you want (we also divide inside calcCDR)
+  state.cdr = ((b.cdrPct || 0) + (adds.cdrPct || 0)) / 100;
+}
+
+
+
+// --- RAID TEAM (passive damage) ---
+const raid = {
+  npcs: [
+    { id:'pyro',  name:'Pyromancer Lyra',  min:80,  max:120, crit:0.15, swing:1.20, jitter:.35, color:'#ffb347', next:0 },
+    { id:'marks', name:'Marksman Jax',     min:60,  max: 90, crit:0.25, swing:0.80, jitter:.25, color:'#a0d8ff', next:0 },
+    { id:'nox',   name:'Shadow Priest Nox',min:30,  max: 40, crit:0.05, swing:2.50, jitter:.50, color:'#c8a2c8', next:0,
+      dot:{ tick:1.0, dmg:12, dur:12 } // occasional shadow word pain style
+    },
+  ],
+  // rolling 10s window for DPS
+  dpsWindowSec: 10,
+  samples: [],  // [ [time, damage] ]
+  windowSum: 0,
+};
+
+function randRange(min,max){ return min + Math.random()*(max-min); }
+function rollCrit(p){ return Math.random() < p; }
+
+// Call this whenever RAID deals damage (updates meter)
+function recordRaidDamage(amount){
+  const t = performance.now()/1000;
+  raid.samples.push([t, amount]);
+  raid.windowSum += amount;
+  // prune old samples beyond window
+  while (raid.samples.length && (t - raid.samples[0][0]) > raid.dpsWindowSec){
+    raid.windowSum -= raid.samples.shift()[1];
+  }
+}
+function getRaidDPS(){
+  // average over the window length; show 0 if no samples yet
+  return raid.windowSum / Math.max(raid.dpsWindowSec, 1);
+}
+
+
+// Boss visual state (size + fx)
+const bossVis = {
+  baseW: 260,            // old was 120; start larger
+  baseH: 300,
+  scale: 1.7,            // make him huge; tweak to taste
+  pulse: 0,
+  flashUntil: 0
+};
+function bossHitFX(){
+  bossVis.flashUntil = performance.now() + 140;    // quick bright flash
+  bossVis.pulse = Math.min(1, bossVis.pulse + 0.5); // stackable pulse
+}
+
+// === GCD UI ===
+let gcdTargetEl = null; // the spell button showing the ring
+
+const gcdBar   = document.getElementById('gcd');
+const gcdFill  = gcdBar?.querySelector('.fill');
+const gcdText  = gcdBar?.querySelector('.t');
+
+const gcdUI = { total: 0, active: false };
+
+function setSpellGcdVisual(progress01, active){
+  if (!gcdTargetEl) return;
+  const pct = Math.max(0, Math.min(1, progress01)) * 100;
+  gcdTargetEl.style.setProperty('--gcdp', pct.toFixed(2));
+  gcdTargetEl.style.setProperty('--gcdA', active ? 1 : 0);
+}
+
+function startGCDUI(totalSec, targetEl){
+  gcdUI.total = Math.max(0.001, totalSec);
+  gcdUI.active = true;
+
+  // turn off previous target's ring (if different)
+  if (gcdTargetEl && gcdTargetEl !== targetEl){
+    gcdTargetEl.style.setProperty('--gcdA', 0);
+  }
+  gcdTargetEl = targetEl || null;
+
+  if (gcdBar && gcdFill){
+    gcdBar.classList.add('active');
+    gcdFill.style.transition = 'none';
+    gcdFill.style.transform  = 'scaleX(1)';
+    void gcdFill.offsetWidth;
+  }
+
+  // keep your “dim all spells on gcd” behavior (optional)
+  document.querySelectorAll('.spell').forEach(el => el.classList.add('locked'));
+
+  // kick off the ring full (1→0) on the pressed button only
+  if (gcdTargetEl){
+    gcdTargetEl.style.setProperty('--gcdp', '100');
+    gcdTargetEl.style.setProperty('--gcdA', '1');
+  }
+}
+
+function updateGCDUI(){
+  if (!gcdBar || !gcdFill) return;
+
+  const nowSec = performance.now()/1000;
+  const left   = Math.max(0, gcdReadyAt - nowSec);
+
+  if (left > 0 && gcdUI.total > 0){
+    const p = left / gcdUI.total; // 1 → 0
+    gcdFill.style.transition = 'transform 0s linear';
+    gcdFill.style.transform  = `scaleX(${p})`;
+    gcdText && (gcdText.textContent = left.toFixed(2) + 's');
+
+    // drive only the target button
+    setSpellGcdVisual(p, true);
+
+    if (!gcdUI.active){ gcdBar.classList.add('active'); gcdUI.active = true; }
+  } else if (gcdUI.active){
+    gcdUI.active = false;
+    gcdBar.classList.remove('active');
+    gcdText && (gcdText.textContent = '');
+
+    document.querySelectorAll('.spell.locked').forEach(el => el.classList.remove('locked'));
+
+    // clear the target’s ring and release the handle
+    if (gcdTargetEl){
+      gcdTargetEl.style.setProperty('--gcdA', '0');
+      gcdTargetEl = null;
+    }
+  }
+}
+
+function stageSwapFX(it){
+  const gameArea = document.getElementById('game');
+  if (gameArea) {
+    gameArea.classList.add('swapFX');
+    setTimeout(()=> gameArea.classList.remove('swapFX'), 1720);
+  }
+
+  // Overlay message
+  const wrap = document.querySelector('.gamewrap');
+  if (!wrap) return;
+
+  const ov = document.createElement('div');
+  ov.className = 'stageOverlay';
+
+  ov.innerHTML = `
+    <div>Boss Defeated!</div>
+    <div class="loot">Loot drop:</div>
+    <div class="tName ${it?.rarityCls||''}">
+      ${it?.name || '—'}
+    </div>
+    <div class="tMeta">Lvl ${it?.level||''} • ${it?.slot||''}</div>
+    <div>${it ? statStr(it.stats) : ''}</div>
+  `;
+
+  wrap.appendChild(ov);
+  setTimeout(()=> ov.remove(), 2600); // remove after fade
+}
+
+
+  // Canvas setup (responsive)
+  const canvas = el('game');
+  const ctx = canvas.getContext('2d');
+  function fitCanvas(){
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+    canvas.width = Math.floor(r.width * dpr);
+    canvas.height = Math.floor(r.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', fitCanvas, {passive:true});
+  fitCanvas();
+
+
+  // Preload boss sprite and world sprite other images boss.png and world.png
+  const WORLD_COUNT = 32;   // set to how many world.png you have
+  const BOSS_COUNT  = 23;   // set to how many boss.png you have
+  
+  const mageImg = new Image(); mageImg.src = 'images/mage.png';
+  const worldImgs = Array.from({length: WORLD_COUNT}, (_,i) => {
+  const im = new Image(); im.src = `images/world${i+1}.png`; return im;
+});
+const bossImgs  = Array.from({length: BOSS_COUNT }, (_,i) => {
+  const im = new Image(); im.src = `images/boss${i+1}.png`;  return im;
+});
+let currentWorldImg = worldImgs[0];
+let currentBossImg  = bossImgs[0];
+function setStage(index){
+  // index is zero-based
+  currentWorldImg = worldImgs[index % WORLD_COUNT];
+  currentBossImg  = bossImgs [index % BOSS_COUNT ];
+  
+}
+
+
+  // World
+ 
+  const HUD_RESERVED = 190; // keep gameplay above bottom HUD
+  const world = {
+    w: () => canvas.width, h: () => canvas.height,
+    player: { x: 180, y: () => Math.max(140, canvas.height - (HUD_RESERVED + 167)), r: 22 },
+    boss:   { x: () => canvas.width - 220, y: () => Math.max(160, canvas.height - (HUD_RESERVED + 70)), r: 40, hp: 20000, max: 20000 },
+    projectiles: [],
+    particles: [],
+    floats: [] // floating damage numbers
+  };
+
+  // Simple particles for impact
+  function spawnImpact(x, y, color){
+    for(let i=0;i<16;i++){
+      const a = Math.random()*Math.PI*2; const s = 1+Math.random()*2;
+      world.particles.push({x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 24, color});
+    }
+  }
+
+// ==== Tooltip Manager (single instance for gear + spells) ====
+const Tooltip = (() => {
+  let el = null, owner = null;
+  function ensure(){
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'tooltip';
+      el.style.display = 'none';
+      document.body.appendChild(el);
+    }
+  }
+  function place(e){
+    const pad = 16, vw = innerWidth, vh = innerHeight;
+    const r = el.getBoundingClientRect();
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + r.width  > vw - 4) x = vw - r.width  - 4;
+    if (y + r.height > vh - 4) y = vh - r.height - 4;
+    el.style.left = x + 'px';
+    el.style.top  = y + 'px';
+  }
+  return {
+    show(target, html, e){
+      ensure();
+      if (owner !== target) { owner = target; el.innerHTML = html; }
+      el.style.display = 'block';
+      if (e) place(e);
+    },
+    move(e){ if (el && el.style.display !== 'none') place(e); },
+    hide(target){
+      if (!el) return;
+      if (!target || target === owner) {
+        el.style.display = 'none';
+        owner = null;
+      }
+    },
+    kill(){ if (el){ el.remove(); el=null; owner=null; } }
+  };
+})();
+
+// Global auto-hide guards
+document.addEventListener('mousedown', () => Tooltip.hide());
+document.addEventListener('wheel',      () => Tooltip.hide(), { passive:true });
+document.addEventListener('scroll',     () => Tooltip.hide(), true); // any scrollable ancestor
+window.addEventListener('blur',         () => Tooltip.hide());
+
+
+
+
+  
+
+const spells = [
+  { id:'fireball', key:'1', name:'Fireball', color:'#ff6a3a',
+    cast:2.3, cd:0, dmg:[220,260],
+    projSpeed: 480, // slower, heavy fireball
+    note:'10% chance to Ignite (DoT).',
+    tip:`<div class="t">Fireball</div><div class="s">Cast: 2.3s • No CD<br>Damage: 220–260<br>10%: <b>Ignite</b> 20% of spell damage over 6 seconds</div>`
+  },
+
+  { id:'frostbolt', key:'2', name:'Frostbolt', color:'#6aa0ff',
+    cast:2.0, cd:0, dmg:[180,210],
+    projSpeed: 560, // medium speed
+    addDebuff:'chilled',
+    tip:`<div class="t">Frostbolt</div><div class="s">Cast: 2.0s • No CD<br>Damage: 180–210<br>Applies <b>Chilled</b>: −10% boss speed for 6s</div>`
+  },
+
+  { id:'icelance', key:'3', name:'Ice Lance', color:'#b8e0ff',
+    cast:0, cd:3, dmg:[120,140], instant:true,
+    projSpeed: 920, // very fast shard
+    bonusIf:'chilled',
+    tip:`<div class="t">Ice Lance</div><div class="s">Instant • CD 3s<br>Damage: 120–140 (x3 vs <b>Chilled</b>)</div>`
+  },
+
+  { id:'arcane', key:'4', name:'Arcane Blast', color:'#b07dff',
+    cast:1.8, cd:0, dmg:[2,780],
+    projSpeed: 600, // crisp medium-fast
+    tip:`<div class="t">Arcane Blast</div><div class="s">Cast: 1.8s • No CD<br>Damage: 2–780 (high variance)</div>`
+  },
+
+  { id:'haste', key:'Q', name:'Time Warp', color:'#6df0a6',
+    cast:0, cd:30, instant:true,
+    effect:() => addBuff('Haste', 12, '#6df0a6', {haste:.25}),
+    tip:`<div class="t">Time Warp</div><div class="s">Instant • CD 30s<br>Gain <b>Haste +25%</b> for 12s.</div>`
+  },
+
+  { id:'power', key:'E', name:'Arcane Power', color:'#ffce6a',
+    cast:0, cd:25, instant:true,
+    effect:() => addBuff('Power', 10, '#ffce6a', {dmg:.30}),
+    tip:`<div class="t">Arcane Power</div><div class="s">Instant • CD 25s<br>Deal <b>+30%</b> damage for 10s.</div>`
+  },
+
+{ id:'lightning', key:'5', name:'Lightning Bolt', color:'#ffd65c',
+  cast:1.6, cd:0, instant:false, dmg:[170,430],
+  projSpeed: 880,
+  tip:"<div class='t'>Lightning Bolt</div><div class='s'>Cast: 1.6s • No CD<br>Damage: 170–430</div>"
+},
+
+{ id:'shadowbolt', key:'6', name:'Shadow Bolt', color:'#c38bff',
+  cast:3.0, cd:0, instant:false, dmg:[590,15260],
+  projSpeed: 375,
+  tip:"<div class='t'>Shadow Bolt</div><div class='s'>Cast: 2.0s • No CD<br>Damage: 590–15260</div>"
+},
+
+{ id:'scorch', key:'f', name:'Scorch', color:'#ff9360',
+  cast:0, cd:2.5, instant:true, dmg:[90,110],
+  projSpeed: 640,
+  tip:"<div class='t'>Scorch</div><div class='s'>Instant • CD 2.5s<br>Damage: 90–110</div>"
+},
+
+{ id:'magicmissile', key:'R', name:'Magic Missile', color:'#80c0ff',
+  channel:3.0, ticks:3, cd:8, dmg:[140,200],
+  tip:"<div class='t'>Magic Missile</div><div class='s'>Channel: 3.0s • CD 8s<br>Fires 3 waves of missiles, each for 140–200 damage</div>"
+},  // ← keep this comma
+
+{ id:'poisonbolt', key:'7', name:'Poison Bolt', color:'#60c060',
+  cast:1.8, cd:0, dmg:[100,140], projSpeed:600,
+  note:'10% chance to Poison (DoT).',
+  tip:"<div class='t'>Poison Bolt</div><div class='s'>Cast: 1.8s • No CD<br>Damage: 100–140<br>10%: <b>Poison</b> — 25% of spell damage over 8s<br>While ticking, gain +1% Poison Damage (stacks)</div>"
+}
+]; // close the spells array
+
+
+
+  // UI for spells (bottom HUD)
+  const spellsWrap = el('spells');
+  function spellTipHTML(sp){
+  // Use sp.tip if present; otherwise build a simple default
+  if (sp.tip) return sp.tip;
+  const cast = sp.instant ? 'Instant' : `Cast: ${sp.cast?.toFixed?.(1)||sp.cast||0}s`;
+  const cd   = sp.cd ? ` • CD ${sp.cd}s` : ' • No CD';
+  const dmg  = sp.dmg ? `<br>Damage: ${sp.dmg[0]}–${sp.dmg[1]}` : '';
+  return `<div class="t">${sp.name}</div><div class="s">${cast}${cd}${dmg}</div>`;
+}
+
+spells.forEach(sp => {
+  const d = document.createElement('div');
+  d.className='spell'; d.dataset.id = sp.id; d.dataset.key = sp.key;
+  d.setAttribute('role','button');
+  d.innerHTML = `<i>${sp.name.split(' ')[0]}</i>`;
+
+  const ring = document.createElement('b'); ring.className = 'cdring';
+  const txt  = document.createElement('em'); txt.className = 'cdtxt';
+  d.appendChild(ring); d.appendChild(txt);
+
+  // UNIFIED tooltip
+  d.addEventListener('mouseenter', e => Tooltip.show(d, spellTipHTML(sp), e));
+  d.addEventListener('mousemove',  e => Tooltip.move(e));
+  d.addEventListener('mouseleave', () => Tooltip.hide(d));
+  d.addEventListener('dragstart',  () => Tooltip.hide(d));   // safety
+  d.addEventListener('click',      () => tryCast(sp));
+
+  spellsWrap.appendChild(d);
+});
+
+
+// --- Buffs / Debuffs (clean module) ----------------------------------------
+function addBuff(id, durSec = 0, glow = '#ffffff', mods = {}, displayName) {
+  const now   = performance.now()/1000;
+  const until = now + Math.max(0, durSec);
+
+  // normalize storage key; keep a human name separately
+  const key = String(id || '').toLowerCase();
+
+  // create or refresh
+  const b = state.buffs[key] || { id: key, t0: now, until, glow, mods: {} };
+  b.t0    = now;
+  b.until = until;
+  if (glow) b.glow = glow;
+  if (mods) b.mods = mods;
+  // prefer explicit displayName, else the original id as a nice label
+  b.name = displayName || b.name || String(id);
+  state.buffs[key] = b;
+
+  // matching aura
+  state.auras[key] = { color: b.glow, until: b.until };
+
+  // one-shot FX
+  try {
+    const [px, py] = getPlayerXY();
+    if (typeof spawnImpact === 'function') spawnImpact(px, py, b.glow);
+  } catch (e) {}
+
+  renderBadges?.();
+}
+
+
+
+function hasDebuff(id) {
+  return !!state.buffs?.[String(id || '').toLowerCase()];
+}
+
+/**
+ * Renders #badges from state.buffs
+ * - Prunes expired
+ * - Sorts by time left (desc)
+ * - Reuses nodes; single tooltip wiring per node
+ */
+function renderBadges() {
+  const wrap = document.getElementById('badges');
+  if (!wrap) return;
+
+  const now = performance.now() / 1000;
+
+  // prune expired
+  for (const [bid, b] of Object.entries(state.buffs || {})) {
+    if (!b || b.until <= now) delete state.buffs[bid];
+  }
+
+  // newest expiring first
+  const entries = Object.entries(state.buffs || {}).sort((a, b) => {
+    const la = Math.max(0, a[1].until - now);
+    const lb = Math.max(0, b[1].until - now);
+    return lb - la;
+  });
+
+  // map existing nodes
+  const existing = new Map();
+  wrap.querySelectorAll('.badge').forEach(el => existing.set(el.dataset.id, el));
+
+  const frag = document.createDocumentFragment();
+
+  for (const [id, b] of entries) {
+    const left = Math.max(0, b.until - now);
+    let el = existing.get(id);
+
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'badge';
+      el.dataset.id = id;
+
+      // one-time tooltip wiring
+      el.addEventListener('pointerenter', e => {
+        // recompute live time remaining so tooltip doesn’t freeze
+        const now2 = performance.now() / 1000;
+        const left2 = Math.max(0, (state.buffs?.[id]?.until ?? now2) - now2);
+
+        const mods = state.buffs?.[id]?.mods || {};
+        const modList = Object.keys(mods).length
+          ? '<br>Mods: ' + Object.entries(mods)
+              .map(([k, v]) => `${k}: ${(v > 0 ? '+' : '')}${Math.round(v * 100)}%`)
+              .join(', ')
+          : '';
+
+        const html =
+          `<div class='t'>${state.buffs?.[id]?.name ?? b.name}</div>` +
+          `<div class='s'>Duration: ${left2.toFixed(1)}s${modList}</div>`;
+
+        Tooltip.show(el, html, e);
+      });
+      el.addEventListener('pointermove', e => Tooltip.move(e));
+      el.addEventListener('pointerleave', () => Tooltip.hide(el));
+    } else {
+      existing.delete(id); // it’s staying
+    }
+
+    el.style.boxShadow = `0 0 8px ${b.glow || '#6aa0ff'}`;
+    el.textContent = `${b.name} ${left.toFixed(1)}s`;
+
+    frag.appendChild(el);
+  }
+
+  // remove ones not in state anymore
+  existing.forEach(el => el.remove());
+
+  // commit order
+  wrap.replaceChildren(frag);
+}
+
+
+
+  // Controlled DoTs: ticks exactly every 1s
+  function addDot(name, totalOver, duration, color){
+    const dpt = totalOver / duration; // damage per second
+    const nowS = performance.now()/1000;
+    state.dots.push({name, dpt, interval:1, next: nowS + 1, until: nowS + duration, color});
+  }
+
+  // Casting logic
+// NEW: queue + helper
+let queuedSpell = null; // one-spell input buffer
+
+const GCD = 1.5; // sec
+let gcdReadyAt = 0;
+
+function gcdReady(){
+  return performance.now()/1000 >= gcdReadyAt;
+}
+
+function onGCD(targetEl){
+  const now = performance.now()/1000;
+  const dur = GCD * (1 - getHaste());
+  gcdReadyAt = now + dur;
+  startGCDUI(dur, targetEl);
+}
+
+function getHaste(){ return (state.buffs.haste?.mods?.haste||0) + state.haste; }
+function dmgMult(){ return 1 + (state.buffs.power?.mods?.dmg||0); }
+
+function maybeFireQueued(){
+  const t = performance.now()/1000;
+  if (!queuedSpell) return;
+  if (!casting && t >= gcdReadyAt){
+    const sp = queuedSpell; queuedSpell = null;
+    tryCast(sp);
+  }
+}
+
+// ---------- Stat helpers ----------
+function getStat(k){
+  const t = state.totalStats || {};
+  if (k in t) return t[k];
+
+  const map = {
+    STR:'str', INT:'int', AGI:'agi', SP:'sp',
+    Crit:'critPct', Haste:'hastePct', CDR:'cdrPct',
+    RaidStrength:'raidStrength'
+  };
+
+  const mk = map[k] ?? k;        // ← use the mapped key
+  return t[mk] ?? 0;             // ← and return a value
+}
+
+function getSP(){ return getStat('SP'); }
+function getINT(){ return getStat('INT'); }
+function getSTR(){ return getStat('STR'); }
+function getAGI(){ return getStat('AGI'); }
+
+// Crit is in *points* on items (e.g., +5 Crit = +5%)
+function getCritChance(sp){
+  const base = state.baseCrit || 0;           // e.g., 0.10 if you set it elsewhere
+  const fromGear  = (getStat('Crit')||0) * 0.01;
+  const fromSpell = sp.critBonus || 0;        // optional per-spell bonus chance (0..1)
+  const c = base + fromGear + fromSpell;
+  return Math.max(0, Math.min(0.95, c));
+}
+
+// ---------- Haste/CDR & dmg mult ----------
+let casting = null; // {sp, t0, dur}
+function getHaste(){ return (state.buffs.haste?.mods?.haste||0) + (state.haste||0); } // fraction
+function dmgMult(){ return 1 + (state.buffs.power?.mods?.dmg||0); }
+function effectiveHasteMult(){
+  // Cap haste so multiplier never goes below 0.1 (10% of base time)
+  return Math.max(0.1, 1 - getHaste());
+}
+
+
+// ---------- Cooldown helpers (CDR applied here) ----------
+function secondsNow(){ return performance.now()/1000; }
+
+function getSpellCooldownBase(sp){
+  // Accept multiple keys for convenience
+  return sp.cd ?? sp.cooldown ?? sp.cdSec ?? sp.cooldownSec ?? 0;
+}
+
+function startSpellCooldown(sp, now = secondsNow()){
+  const base = +getSpellCooldownBase(sp) || 0;
+  if (base <= 0) return;
+  const eff = base * (1 - calcCDR());     // CDR reduces individual spell CD
+  state.cds[sp.id]     = now + eff;
+  state.cdTotal[sp.id] = eff;             // drives your UI badge/countdown
+  pulseIcon?.(sp.id);
+}
+
+// ---------- Casting ----------
+function tryCast(sp){
+  const now = secondsNow();
+  const elTarget = document.querySelector(`.spell[data-id="${sp.id}"]`);
+
+  // Per-spell CD gate
+  const readyAt = state.cds[sp.id] || 0;
+  if (readyAt > now) return;
+
+  // If already casting, we don't start another here
+  if (casting) return;
+
+  // Non-instants respect GCD; instants also usually respect GCD (keep your rule)
+  if (!sp.instant && !gcdReady()) return;
+  if (sp.instant && !gcdReady())  return;
+
+  // Put the spell on cooldown *now* (so buffs also get CDR)
+  startSpellCooldown(sp, now);
+
+  if (sp.instant){
+    // GCD at cast start for instants
+    onGCD(elTarget);
+    resolveSpell(sp);
+    return;
+  }
+  if (sp.channel){   // NEW: channeled spells
+  onGCD(elTarget);
+  const dur = sp.channel * effectiveHasteMult(); 
+  casting = { sp, t0: now, dur, channel:true, ticks: sp.ticks, done:0 };
+  castfill.style.width = '0%';
+  castlabel.textContent = sp.name;
+  castbar.setAttribute('aria-hidden','false');
+  return;
+}
+
+
+  // CASTED: put GCD at cast START (unchanged)
+  onGCD(elTarget);
+  const dur = sp.cast   * effectiveHasteMult();   // haste reduces cast time
+  casting = { sp, t0: now, dur };
+  castfill.style.width = '0%';
+  castlabel.textContent = sp.name;
+  castbar.setAttribute('aria-hidden','false');
+}
+
+// ---------- Resolution ----------
+function resolveSpell(sp){
+  // 1) Effect-only / buff spells
+  if (!sp.dmg || !Array.isArray(sp.dmg)){
+    if (typeof sp.effect === 'function') {
+      sp.effect();
+      // spawn visual burst at player when buffed
+const px = world.player.x;
+const py = typeof world.player.y==='function' ? world.player.y() : world.player.y;
+spawnImpact(px, py, sp.color || '#ffffff');
+
+      addLog(`<b>${sp.name}</b> activated.`);
+    }
+    return;
+  }
+
+  // 2) Normal damaging spells (stat-scaled)
+  let { dmg, isCrit } = rollSpellDamage(sp);
+
+  // Debuff synergy (example)
+  if (sp.id === 'icelance' && hasDebuff('chilled')) dmg *= 3;
+
+
+  // Log (feel-good number first)
+if (isCrit){
+  addLog(`${sp.name} crit for <b class='crit'>${fmt(dmg)}</b>!`);
+} else {
+  addLog(`${sp.name} hit for <b class='dmg'>${fmt(dmg)}</b>.`);
+}
+
+  // Global damage multipliers (e.g., Arcane Power)
+  dmg *= dmgMult();
+  dmg = Math.round(dmg);
+
+// Apply debuff/DoT hooks
+
+// --- Apply on-hit debuffs declared on the spell (e.g., Frostbolt → Chilled)
+const DEBUFFS = {
+  chilled: { name:'Chilled', dur:6, glow:'#6aa0ff', mods:{} },
+  // add more debuffs here later if you want
+};
+
+if (sp.addDebuff) {
+  const key = String(sp.addDebuff).toLowerCase();
+  const d   = DEBUFFS[key];
+  if (d) addBuff(key, d.dur, d.glow, d.mods, d.name); // key for storage, name for UI
+}
+
+function getBuff(key) {
+  const now = performance.now()/1000;
+  const k = String(key || '').toLowerCase();
+  const b = state.buffs?.[k];
+  return b && (b.until ?? now + 1) > now ? b : null;
+}
+
+function hasDebuff(id) {
+  return !!getBuff(id);
+}
+
+
+
+// --- Poison Bolt (20% proc) ---
+if (sp.id === 'poisonbolt' && Math.random() < 0.20){
+  addBuff('Poisoned', 8, '#60c060', {});
+  const POISON_PCT = 0.25;
+  const poisonTotal = Math.max(1, Math.round(dmg * POISON_PCT));
+
+  const pos = (typeof getBossAimPoint === 'function') ? getBossAimPoint() : null;
+  // addDot accepts extra args safely; if you later add position support, it's here
+  addDot('Poison', poisonTotal, 8, '#60c060', pos);
+
+  // Add/refresh stacking self-buff: +1% poison dmg per stack, 8s
+  const existing = state.buffs['poisonboost'];
+  const stacks = (existing?.stacks || 0) + 1;
+  state.buffs['poisonboost'] = {
+    name: `Poison Boost (${stacks})`,
+    until: performance.now()/1000 + 8,
+    stacks,
+    mods: { poison: stacks * 0.01 },
+    glow: '#60c060'
+  };
+  renderBadges?.();
+
+  addLog(`<b>Poison</b> applied for <b class='dmg'>${fmt(poisonTotal)}</b> over 8s. (+${stacks}% poison dmg)`);
+}
+
+// --- Fireball Ignite (10% proc) ---
+if (sp.id === 'fireball' && Math.random() < 0.10){
+  addBuff('Ignite', 6, '#ff6a3a', {});
+  const IGNITE_PCT = 0.20;
+  const igniteTotal = Math.max(1, Math.round(dmg * IGNITE_PCT));
+
+  // Anchor to current chest aim point
+  const ignitePos = (typeof getBossAimPoint === 'function') ? getBossAimPoint() : null;
+  addDot('Ignite', igniteTotal, 6, '#ff6a3a', ignitePos);
+
+  addLog(`<b>Ignite</b> applied for <b class='dmg'>${fmt(igniteTotal)}</b> over 6s.`);
+}
+
+
+  // Visual projectile (supports per-spell speed if you set sp.projSpeed)
+  spawnProjectile({
+    color: sp.color,
+    dmg,
+    isCrit,
+    speed: sp.projSpeed || 520,
+    spreadDeg: 5,
+    radius: 6
+  });
+}
+
+
+    // Damage applied on impact (onHit)
+  
+
+
+
+
+function spawnProjectile(arg1, arg2, arg3){
+  // Back-compat signature
+  let color, dmg, isCrit,
+      speed=520, radius=6,
+      turnRate=6.0,        // rad/s clamp for steering
+      curveAmt=0.6,        // wobble amplitude in radians
+      curveFreq=3.2,       // wobble frequency (Hz-ish)
+      hitRadius=14;        // impact distance
+      
+
+  if (typeof arg1 === 'object') {
+    ({ color, dmg, isCrit=false, speed=520, radius=6,
+       turnRate=6.0, curveAmt=0.6, curveFreq=3.2, hitRadius=14 } = arg1 || {});
+  } else {
+    color = arg1; dmg = arg2; isCrit = !!arg3;
+  }
+
+  // Start at player
+  const p = world.player;
+  const sx = (typeof p.x === 'function') ? p.x() : p.x;
+  const sy = (typeof p.y === 'function') ? p.y() : p.y;
+
+  // Aim toward boss chest with a touch of initial jitter
+  const tgt = getBossAimPoint();
+  const baseAng = Math.atan2(tgt.y - sy, tgt.x - sx);
+  const jitter = (Math.random()*2 - 1) * (5 * Math.PI/180); // ~±5°
+  const ang0 = baseAng + jitter;
+
+  world.projectiles.push({
+    // motion
+    x: sx, y: sy, ang: ang0, speed,
+    turnRate, curveAmt, curveFreq,
+    noiseSeed: Math.random()*Math.PI*2,
+    t0: performance.now()/1000,
+    // visuals
+    color, radius,
+    trail: [], lastSample: 0,
+    // gameplay
+    dmg, isCrit, hitRadius,
+    // target getter so homing tracks moving bosses
+    getTarget: getBossAimPoint
+  });
+}
+
+
+
+  
+function addFloatJitter(amount, isCrit, from='me', color){
+  const bx = typeof world.boss.x==='function'?world.boss.x():world.boss.x;
+  const by = typeof world.boss.y==='function'?world.boss.y():world.boss.y;
+  const spread = isCrit ? 112 : 84;
+  const ox = (Math.random()*2-1) * spread;
+  const oy = (Math.random()*2-1) * (spread*0.7);
+  world.floats.push({
+    x: bx + ox,
+    y: by - (bossVis.baseH*bossVis.scale)*0.35 + oy,
+    vx: (Math.random()*2-1) * 0.15,
+    vy: -0.9,
+    txt: fmt(amount),
+    crit: !!isCrit,
+    from,                              // ← 'me' or 'raid'
+    t: 0,
+    color,
+    life: from==='raid' ? (isCrit?260:220) : (isCrit?310:255)
+  });
+}
+
+
+
+
+  // Allow onHit to receive the true impact point (and optional color)
+function onHit(dmg, isCrit, ix, iy, color='#ffffff'){
+  const b = world.boss;
+  b.hp = Math.max(0, b.hp - dmg);
+  dpsRecord('me', Math.round(dmg));
+
+  // floating text still anchored near boss
+  addFloatJitter(dmg, isCrit, 'me', color);
+if (b.hp <= 0 && !bossKO){
+    bossKO = true;
+    onBossDeath();
+  }
+
+  // impact FX at projectile collision point (fallback = boss center)
+  if (ix == null || iy == null){
+    const bx = (typeof world.boss.x==='function'?world.boss.x():world.boss.x);
+    const by = (typeof world.boss.y==='function'?world.boss.y():world.boss.y);
+    ix = bx; iy = by;
+  }
+  spawnImpact(ix, iy, color);
+}
+
+
+ function bossTake(dmg, source='raid', crit=false){
+  const b = world.boss;                 // ← write to on-screen boss
+  if (!b || bossKO) return;
+  b.hp = Math.max(0, b.hp - dmg);
+
+  // raid DPS bookkeeping
+  dpsRecord?.('raid', Math.round(dmg));
+
+  // small, subtle float for raid hits
+  addFloatJitter(dmg, crit, 'raid');
+
+
+  if (b.hp <= 0 && !bossKO){
+    bossKO = true;
+    onBossDeath();
+  }
+}
+
+function getBossXP(boss){
+  // modest: scales with boss max HP a bit
+  const maxhp = boss.maxhp || boss.maxHP || 1000;
+  return 75 + Math.floor(maxhp / 30);
+}
+
+
+function onBossDeath(){
+  kills++;
+  const loot = grantRandomItem();   // capture item
+  stageSwapFX(loot);                // pass to overlay
+  const xp = getBossXP(world.boss);
+  grantXP(xp);
+  combatLog?.(`✧ ${(boss?.name||'The Raid Dummy')} defeated! (${kills} total)`);
+
+  setTimeout(()=>{
+    const scale = 1 + (kills * 0.15);
+    spawnBoss(scale);
+    bossKO = false; // allow future deaths
+  }, 1700);
+}
+
+function addDot(name, total, seconds, color, pos){
+  const now = performance.now()/1000;
+  const interval = 1;
+  state.dots.push({
+    name,
+    total,
+    color,        // keep the color
+    pos,          // {x,y} anchor (optional)
+    interval,
+    next: now + interval,
+    until: now + seconds,
+    dpt: total / (seconds / interval)
+  });
+}
+
+
+function updateRaid(now){
+  for (const m of raid.npcs){
+    if (now >= (m.next || 0)){
+      // schedule next swing with a bit of natural variance
+      const jitter = randRange(-m.jitter, m.jitter);
+      m.next = now + Math.max(0.2, m.swing + jitter);
+
+      // base hit
+      let dmg = randRange(m.min, m.max);
+const rs = Math.max(0, getStat('RaidStrength')|0);     // points
+dmg *= (1 + rs * 0.01);                                // +1% per point
+const crit = rollCrit(m.crit);
+if (crit) dmg *= 2;
+
+
+      bossTake?.(Math.round(dmg), m.name, crit);
+      recordRaidDamage(dmg);
+
+      // simple DoT proc if present (doesn't stack; reapply baseline)
+      if (m.dot && Math.random()<0.3){ // 30% chance to reapply
+        const ticks = Math.floor(m.dot.dur / m.dot.tick);
+        let t0 = 0;
+        for (let i=0;i<ticks;i++){
+          t0 += m.dot.tick;
+          // schedule future ticks using your timer/tween system OR a simple timeout fallback
+          setTimeout(()=>{
+            if(!boss || boss.dead) return;
+            const rs = Math.max(0, getStat('RaidStrength')|0);
+const td = Math.round(m.dot.dmg * (1 + rs * 0.01));
+bossTake?.(td, `${m.name} (DoT)`, false);
+recordRaidDamage(td);
+
+          }, t0*1000);
+        }
+        combatLog?.(`${m.name} applies a shadow DoT.`);
+      }
+    }
+  }
+}
+
+
+  // Icons pulse when pressed
+  function pulseIcon(id){
+    const node = document.querySelector(`.spell[data-id="${id}"]`);
+    if(!node) return; node.classList.remove('pulse'); void node.offsetWidth; node.classList.add('pulse');
+  }
+
+  // Keyboard
+  const keyMap = Object.fromEntries(spells.map(s=>[s.key.toLowerCase(), s]));
+  window.addEventListener('keydown', e=>{
+  const k = (e.key||'').toLowerCase();
+  const sp = keyMap[k];
+  if(!sp) return;
+
+  e.preventDefault();
+
+  const t = performance.now()/1000;
+
+  if (casting){
+    // Time remaining on the current cast
+    const remaining = (casting.t0 + casting.dur) - t;
+
+    // Only accept a SINGLE buffer if key is pressed within the queue window
+    if (remaining <= QUEUE_WINDOW && remaining > 0){
+      buffered = sp; // last press wins
+    }
+    // Otherwise ignore (no mid-cast queue outside the window)
+    return;
+  }
+
+  // Not casting -> try to cast right away (respects GCD/CD)
+  tryCast(sp);
+});
+
+
+  // Logging
+  function addLog(msg){
+    const at = new Date().toLocaleTimeString();
+    const ln = document.createElement('div'); ln.innerHTML = `[${at}] ${msg}`; logEl.prepend(ln);
+    while(logEl.children.length>700) logEl.lastChild.remove();
+  }
+function combatLog(msg){
+    const at = new Date().toLocaleTimeString();
+    const ln = document.createElement('div'); ln.innerHTML = `[${at}] ${msg}`; logEl.prepend(ln);
+    while(logEl.children.length>700) logEl.lastChild.remove();
+  }
+
+
+  // Main loop
+
+  function tick(){
+    const t = performance.now()/1000; now = t;
+renderStats();
+updateRaid(t);
+    // Finish cast
+    if(casting){
+      const k = (t - casting.t0)/casting.dur;
+      castfill.style.width = Math.max(0, Math.min(1,k))*100+'%';
+      castlabel.textContent = `${casting.sp.name} ${(casting.dur - (t - casting.t0)).toFixed(2)}s`;
+// NEW: channel ticks
+  if (casting.channel){
+    const sp = casting.sp;
+    const tickDur = casting.dur / sp.ticks;
+    const expected = Math.floor((t - casting.t0) / tickDur);
+    while (casting.done < expected && casting.done < sp.ticks){
+      casting.done++;
+      resolveSpell(sp); // fire one tick
+    }
+  }
+
+
+      if(k>=1){ 
+  resolveSpell(casting.sp); 
+  casting = null; 
+  castbar.setAttribute('aria-hidden','true'); 
+  castlabel.textContent = '';   // ⬅ clear text
+  castfill.style.width = '0%';  // ⬅ reset the fill bar
+
+  if (buffered){
+    const next = buffered;
+    buffered = null;
+    tryCast(next);
+  }
+}
+
+    }
+maybeFireQueued();
+
+
+    // DoTs — exact 1s ticks, no spam
+for (let i = state.dots.length - 1; i >= 0; i--){
+  const d = state.dots[i];
+  if (t >= d.until){ state.dots.splice(i,1); continue; }
+  if (t >= d.next){
+    let dmg = Math.round(d.dpt);
+if (d.name === 'Poison') {
+  const boost = state.buffs['poisonboost']?.mods?.poison || 0;
+  dmg = Math.round(dmg * (1 + boost));
+}
+
+
+    // Prefer the anchored pos; fallback to a fresh chest aim point
+    const pos = d.pos || getBossAimPoint();
+    onHit(dmg, false, pos.x, pos.y, d.color || '#ffffff');
+
+    addLog(`<b>${d.name}</b> ticked for <b class='dmg'>${fmt(dmg)}</b>.`);
+    d.next += d.interval;
+  }
+}
+
+
+// CDs + Badges refresh  (per-spell CD ring + number)
+document.querySelectorAll('.spell').forEach(d => {
+  const id = d.dataset.id;
+  const sp = spells.find(s => s.id === id);
+  if (!sp) return;
+
+  const nowS   = t; // t is already defined at top of tick()
+  const readyAt = state.cds[id] || 0;
+  const left    = Math.max(0, readyAt - nowS);
+
+  // aria state + tooltip
+  d.setAttribute('aria-disabled', left > 0 ? 'true' : 'false');
+  d.title = left > 0 ? `${sp.name} — ${left.toFixed(1)}s` : sp.name;
+
+  // avoid fighting the GCD dimming filter; only set our filter if not on GCD lock
+  if (!d.classList.contains('locked')) {
+    d.style.filter = left > 0 ? 'grayscale(0.3) brightness(0.8)' : '';
+  }
+
+  // Per-spell cooldown visuals (only for spells that actually have a CD)
+  if (sp.cd > 0) {
+    const total = state.cdTotal[id] ?? (sp.cd * (1 - getHaste() * 0.5));
+    const p = total > 0 ? (left / total) : 0;   // 1 → 0 (shrinks)
+
+    // drive the inner ring via CSS vars
+    d.style.setProperty('--cdA', left > 0 ? 1 : 0);
+    d.style.setProperty('--cdp', (Math.max(0, Math.min(1, p)) * 100).toFixed(2));
+
+    // numeric text (if element exists)
+    const txt = d.querySelector('.cdtxt');
+    if (txt) {
+      if (left > 0) {
+        txt.textContent = left >= 10 ? Math.ceil(left) : left.toFixed(1);
+      } else {
+        txt.textContent = '';
+      }
+    }
+  } else {
+    // ensure CD UI is hidden for no-CD spells
+    d.style.setProperty('--cdA', 0);
+    const txt = d.querySelector('.cdtxt');
+    if (txt) txt.textContent = '';
+  }
+});
+
+renderBadges();
+
+
+    // DPS meters
+    const nowS = t;
+const meDen   = Math.max(0.5, nowS - state.dpsMe.t0);
+const raidDen = Math.max(0.5, nowS - state.dpsRaid.t0);
+yourDpsEl.textContent = fmt(state.dpsMe.sum   / meDen);
+raidDpsEl.textContent = fmt(state.dpsRaid.sum / raidDen);
+
+
+
+    // Boss HP bar
+
+    
+    bossBar.style.transform = `scaleX(${world.boss.hp/world.boss.max})`;
+    const hp = Math.max(0, Math.round(world.boss.hp));
+const max = world.boss.max|0;
+const pct = Math.round(100*world.boss.hp/world.boss.max);
+
+bossHpText.textContent = `${hp.toLocaleString()} / ${max.toLocaleString()} HP (${pct}%)`;
+  }
+// Rolling DPS windows (works with your existing textContent lines)
+const DPS_WINDOW = 10; // seconds
+
+
+function dpsRecord(target /* 'me' | 'raid' */, amount){
+  const bucket = (target==='me') ? state.dpsMe : state.dpsRaid;
+  const now = performance.now()/1000;
+
+  // push this hit
+  bucket.samples.push([now, amount]);
+  bucket.sum += amount;
+
+  // prune older-than-window
+  const cutoff = now - (bucket.window || DPS_WINDOW);
+  while (bucket.samples.length && bucket.samples[0][0] < cutoff){
+    bucket.sum -= bucket.samples.shift()[1];
+  }
+
+  // set t0 so your UI denominator == window length (or less if just started)
+  bucket.t0 = Math.max(cutoff, bucket.samples.length ? bucket.samples[0][0] : now);
+}
+
+
+  function draw(){
+    // Clear
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    // Background world image
+if (currentWorldImg.complete && currentWorldImg.naturalWidth){
+  ctx.drawImage(currentWorldImg, 0, -75, canvas.width, canvas.height);
+} else  {
+  // fallback: background grid
+  const w = canvas.width, h = canvas.height;
+  ctx.save();
+  ctx.globalAlpha = .12;
+  ctx.fillStyle = '#152033';
+  for (let x=0;x<w;x+=40){ ctx.fillRect(x,0,1,h); }
+  for (let y=0;y<h;y+=40){ ctx.fillRect(0,y,w,1); }
+  ctx.restore();
+}
+
+
+    // Player
+    // Player — sprite if loaded, else fallback circle
+const px = world.player.x;
+const py = typeof world.player.y === 'function' ? world.player.y() : world.player.y;
+const pr = world.player.r;
+
+if (mageImg.complete && mageImg.naturalWidth) {
+  const w = pr * 3.8;   // scale to fit nicely
+  const h = pr * 3.8;
+  ctx.drawImage(mageImg, px - w/2, py - h/2, w, h);
+} else {
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, Math.PI*2);
+  const gradP = ctx.createRadialGradient(px, py, 4, px, py, 24);
+  gradP.addColorStop(0,'#6aa0ff'); gradP.addColorStop(1,'#20304b');
+  ctx.fillStyle = gradP;
+  ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.15)';
+  ctx.stroke();
+}
+// === Player buff auras ===
+{
+  const now = performance.now()/1000;
+  const [px, py] = getPlayerXY();
+  const baseR = (world.player?.r ?? 24) * 2.2; // halo radius around player
+
+  for (const [id, a] of Object.entries(state.auras)){
+    if (!a || now >= a.until){ delete state.auras[id]; continue; }
+
+    const left  = a.until - now;
+    const life  = Math.max(0.001, a.until - (state.buffs[id]?.t0 ?? (now-left))); // guard
+    const p     = 1 - (left / life);        // 0..1 over the aura lifetime
+    const ease  = 1 - p*p;                   // ease-out
+    const pulse = 1 + 0.08*Math.sin(now*6);  // subtle breathing
+    const alpha = 0.6 * ease;
+
+    // soft glow
+    ctx.save();
+    const g = ctx.createRadialGradient(px,py, baseR*0.4, px,py, baseR*1.3);
+    g.addColorStop(0, `rgba( ${parseInt(a.color.slice(1,3),16)}, ${parseInt(a.color.slice(3,5),16)}, ${parseInt(a.color.slice(5,7),16)}, ${0.22*alpha} )`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(px, py, baseR*1.25*pulse, 0, Math.PI*2);
+    ctx.fill();
+
+    // crisp outer ring
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 3.5 * pulse;
+    ctx.strokeStyle = a.color;
+    ctx.beginPath();
+    ctx.arc(px, py, baseR*0.85, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+
+
+    // Boss — sprite if loaded, else fallback circle
+const bx = typeof world.boss.x==='function'?world.boss.x():world.boss.x;
+const by = typeof world.boss.y==='function'?world.boss.y():world.boss.y;
+
+bossVis.pulse = Math.max(0, bossVis.pulse - 0.025);
+const ease = t => 1 - (1-t)*(1-t);
+const pulseAmt = 0.06 * ease(bossVis.pulse);
+const drawScale = bossVis.scale * (1 + pulseAmt);
+const bw = bossVis.baseW * drawScale, bh = bossVis.baseH * drawScale;
+
+if(currentBossImg.complete && currentBossImg.naturalWidth){
+  const flashing = performance.now() < bossVis.flashUntil;
+
+  ctx.save();
+  if (flashing){
+    ctx.filter = 'brightness(1.6) contrast(1.05) saturate(1.1)';
+    ctx.shadowColor = 'rgba(255,240,200,0.85)';
+    ctx.shadowBlur = 28;
+  }
+  ctx.drawImage(currentBossImg, bx-bw/2, by-bh, bw, bh);
+  ctx.restore();
+}else{
+  ctx.beginPath(); ctx.arc(bx, by, world.boss.r, 0, Math.PI*2);
+  const gradB = ctx.createRadialGradient(bx,by,6, bx,by,42); gradB.addColorStop(0,'#ff7a7a'); gradB.addColorStop(1,'#402227');
+  ctx.fillStyle = gradB; ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.stroke();
+}
+
+
+updateGCDUI();
+
+function bootUI(){
+  loadGear();                 // your existing load (now also loads gold)
+  renderInventory();
+  renderGear();
+  bindGearDropTargets();
+
+  renderGold();               // <— show current value
+  bindSellDropTarget();       // <— enable sell zone
+}
+
+window.addEventListener('DOMContentLoaded', bootUI);
+
+    
+// Projectiles
+// Delta time (clamped) — place before the projectiles loop
+const tnow = performance.now()/1000;
+world.dt = Math.min(0.033, Math.max(0.001, tnow - (world.prevT ?? tnow)));
+world.prevT = tnow;
+
+for (let i = world.projectiles.length - 1; i >= 0; i--) {
+  const p = world.projectiles[i];
+
+  // === 2.1 Steering toward current boss aim point ===
+  const target = p.getTarget ? p.getTarget() : getBossAimPoint();
+
+  const dx = target.x - p.x, dy = target.y - p.y;
+  const d  = Math.hypot(dx, dy);
+  const desired = Math.atan2(dy, dx);
+
+  // Curvy wobble (organic arc), fades near target to prevent orbiting
+  const nearFactor = Math.min(1, d / 140);
+  let wobble = Math.sin((tnow - p.t0) * p.curveFreq + p.noiseSeed) * p.curveAmt * nearFactor;
+
+  // Turn rate ramps up as distance shrinks (terminal guidance)
+  let maxTurn = p.turnRate * (1 + 300 / (d + 30));
+
+  // Detect "orbiting" (not closing + heading roughly tangential) and latch
+  const diff = angleDiff(p.ang, desired);
+  const closing = d < (p.prevD - 0.5); // must reduce distance by ~0.5px frame-to-frame
+  if (d < 120 && !closing && Math.abs(Math.cos(diff)) < 0.4) {
+    p.stallFrames = (p.stallFrames|0) + 1;
+  } else {
+    p.stallFrames = 0;
+  }
+  if (p.stallFrames > 6) p.noMiss = true; // ~0.1s at 60fps
+
+  // No-miss latch: kill wobble, crank steering, slightly enlarge hitbox
+  let hitGrow = 0;
+  if (p.noMiss) {
+    wobble = 0;
+    maxTurn *= 3.0;    // turn HARD toward target
+    hitGrow = 12;      // forgiveness
+  }
+
+  // Smoothly rotate toward desired + wobble, clamped by maxTurn
+  p.ang = rotateToward(p.ang, desired + wobble, maxTurn * world.dt);
+
+  // Advance
+  p.x += Math.cos(p.ang) * p.speed * world.dt;
+  p.y += Math.sin(p.ang) * p.speed * world.dt;
+
+  // === 2.2 Trail sampling (time-based for smoothness independent of FPS) ===
+  if (tnow - p.lastSample > 0.016) { // ~60 Hz sampling
+    p.trail.push({ x:p.x, y:p.y, t:tnow });
+    p.lastSample = tnow;
+    // keep ~0.35–0.5s of history
+    const keepFor = 0.45;
+    while (p.trail.length && (tnow - p.trail[0].t) > keepFor) {
+      p.trail.shift();
+    }
+  }
+
+  // === 2.3 Render ===
+  ctx.save();
+  drawTrail(ctx, p);     // tapered, tinted, fading
+  drawHead(ctx, p);      // bright core + glow
+  ctx.restore();
+
+  // === 2.4 Collision / lifecycle ===
+  // Dynamic hit radius: base + forgiveness + tiny speed term
+  const dynamicHit = Math.max(p.hitRadius + hitGrow, 18 + Math.min(24, p.speed * 0.03));
+
+  if (d <= dynamicHit) {
+    onHit(p.dmg, p.isCrit, p.x, p.y, p.color);
+    bossHitFX?.();
+    world.projectiles.splice(i, 1);
+    continue;
+  }
+
+  // Graceful TTL: if life is long, force latch; finally guarantee a hit
+  const life = tnow - p.t0;
+  if (life > 2.0) p.noMiss = true;          // commit to finish
+  if (life > 2.8) {                          // hard fail-safe: just land it
+    onHit(p.dmg, p.isCrit, target.x, target.y, p.color);
+    bossHitFX?.();
+    world.projectiles.splice(i, 1);
+    continue;
+  }
+
+  p.prevD = d;
+}
+
+// Helpers
+function rotateToward(current, target, maxStep){
+  // shortest-angle difference
+  let diff = ((target - current + Math.PI*3) % (Math.PI*2)) - Math.PI;
+  // clamp step
+  if (diff >  maxStep) diff =  maxStep;
+  if (diff < -maxStep) diff = -maxStep;
+  return current + diff;
+}
+
+// Small angle helper for orbit detection
+function angleDiff(a, b){
+  return ((b - a + Math.PI*3) % (Math.PI*2)) - Math.PI;
+}
+
+
+// Draw a tapered, tinted, fading polyline trail that matches p.color
+function drawTrail(ctx, p){
+  const rgb = hexToRgb(p.color);
+  const pts = p.trail;
+  if (pts.length < 2) return;
+
+  // Render as segments with alpha decaying with age and width tapering toward the tail
+  for (let s = 1; s < pts.length; s++){
+    const a = pts[s-1], b = pts[s];
+    // age fraction of the segment end (newer = closer to 0)
+    const age = (performance.now()/1000 - b.t);
+    const life = 0.45; // matches sampling window above
+    const t = Math.max(0, Math.min(1, age / life)); // 0..1
+
+    // alpha and width curve (front bright & thick -> tail faint & thin)
+    const alpha = (1 - t) * 0.7;                  // fade out
+    const w = Math.max(1, p.radius * (1 - t*0.9));// taper
+
+    // slight tint drift toward white on the head, darker on tail
+    const tint = 0.25 * (1 - t); // 0..0.25
+    const r = mix(rgb.r, 255, tint);
+    const g = mix(rgb.g, 255, tint);
+    const bcol = mix(rgb.b, 255, tint);
+
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = w;
+    ctx.strokeStyle = `rgb(${r},${g},${bcol})`;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+}
+
+// Draw the glowing head/core
+function drawHead(ctx, p){
+  const r = p.radius || 6;
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = p.color;
+  ctx.fillStyle = p.color;
+
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+  ctx.fill();
+
+  // small additive-ish bloom halo
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r*1.8, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// tiny helpers (you already have hexToRgb / mix)
+function hexToRgb(hex){
+  if (!hex) return {r:255,g:255,b:255};
+  const s = String(hex).replace('#','').trim();
+  const h = s.length===3 ? s.split('').map(c=>c+c).join('') : s;
+  const n = parseInt(h,16);
+  if (Number.isNaN(n)) return {r:255,g:255,b:255};
+  return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
+}
+function mix(a,b,t){ return (a*(1-t) + b*t)|0; }
+
+
+// Impact particles
+for (let i = world.particles.length - 1; i >= 0; i--) {
+  const q = world.particles[i];
+  q.x += q.vx; q.y += q.vy; q.life--;
+  if (q.life <= 0) { world.particles.splice(i,1); continue; }
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, q.life/24);
+  ctx.fillStyle = q.color;
+  ctx.beginPath();
+  ctx.arc(q.x, q.y, 2, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Floating damage numbers
+for (let i = world.floats.length - 1; i >= 0; i--) {
+  const f = world.floats[i];
+  f.t++;
+
+  // defaults for older floats
+  if (f.vx == null) f.vx = (Math.random() * 2 - 1) * 0.15;
+  if (f.vy == null) f.vy = -0.9;
+
+  const p = f.t / f.life; // 0..1
+  f.x += f.vx;
+  f.y += f.vy * (0.6 + 0.4 * p); // slow upward over time
+
+  const alpha = Math.max(0, 1 - p * p); // ease-out fade
+  const from = f.from || 'me';
+
+  // size: raid smaller, player chunkier
+  const base = from === 'raid' ? 1.15 : 2.0;
+  const bump = f.crit
+    ? (from === 'raid' ? 0.25 : 0.60)
+    : (from === 'raid' ? 0.10 : 0.20);
+  const scale = base + bump * (1 - p);
+
+  // base fill as before
+  const baseFillHex = f.crit
+    ? (from === 'raid' ? '#ffe9a6' : '#ffef80')
+    : (from === 'raid' ? '#cfe2ff' : '#ffffff');
+  const baseRGB = hexToRgb(baseFillHex);
+
+  // optional spell tint
+  const tintRGB = f.color ? hexToRgb(f.color) : null;
+  const tintStrength = tintRGB ? 0.75 * (1 - p * 0.6) : 0;
+
+  const r = tintRGB ? mix(baseRGB.r, tintRGB.r, tintStrength) : baseRGB.r;
+  const g = tintRGB ? mix(baseRGB.g, tintRGB.g, tintStrength) : baseRGB.g;
+  const b = tintRGB ? mix(baseRGB.b, tintRGB.b, tintStrength) : baseRGB.b;
+
+  ctx.save();
+  ctx.globalAlpha = from === 'raid' ? alpha * 0.9 : alpha;
+  ctx.font = `${Math.round(18 * scale)}px Impact, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.shadowColor = `rgba(${r},${g},${b},${f.crit ? 0.9 : 0.6})`;
+  ctx.shadowBlur  = f.crit ? 16 : 8;
+  ctx.fillStyle   = `rgba(${r},${g},${b},${Math.max(0.35, alpha)})`;
+
+  ctx.strokeStyle = f.crit
+    ? (from === 'raid' ? 'rgba(120,90,10,.9)' : 'rgba(166,111,0,.9)')
+    : (from === 'raid' ? 'rgba(40,80,140,.9)' : 'rgba(51,51,51,.9)');
+  ctx.lineWidth = f.crit ? (from === 'raid' ? 2 : 3) : (from === 'raid' ? 1.5 : 2);
+
+  ctx.strokeText(f.txt, f.x, f.y);
+  ctx.fillText(f.txt, f.x, f.y);
+  ctx.restore();
+
+  if (f.t >= f.life) world.floats.splice(i, 1);
+} // <-- end floats loop
+
+} //closes draw
+
+  function loop(){ tick(); draw(); requestAnimationFrame(loop); }
+  loop();
+
+  // Demo notes
+  //addLog('Player & Boss raised for visibility.');
+  
+})();
+
+
+
+
+</script>
+<script>
+(function(){
+  const dpr = Math.min(2, window.devicePixelRatio || 1); // cap DPR for performance
+  const root = document.documentElement;
+  const isMobile = () => Math.min(window.innerWidth, window.innerHeight) < 820;
+
+  function setMobileFlag(){
+    if (isMobile()) {
+      root.classList.add('mobile');
+      root.classList.add('mobile'); // idempotent
+      root.classList.add('mobile');
+      root.classList.add('mobile');
+      // ^ harmless repeats; keeps this snippet simple to paste anywhere
+      root.classList.add('mobile');
+      root.classList.add('mobile');
+      root.classList.add('mobile');
+      root.classList.add('mobile');
+      root.classList.add('mobile');
+      // real flag:
+      root.classList.add('mobile');
+    } else {
+      root.classList.remove('mobile');
+    }
+  }
+
+  function fitCanvas(){
+    const cvs = document.getElementById('gameCanvas') || document.querySelector('#game canvas, canvas.game');
+    if (!cvs) return;
+    const rect = cvs.parentElement.getBoundingClientRect();
+    const w = Math.max(1, rect.width|0);
+    const h = Math.max(1, rect.height|0);
+    // Set backing store to DPR for crisp rendering, but CSS size stays 100%
+    if (cvs.width !== (w*dpr) || cvs.height !== (h*dpr)) {
+      cvs.width  = (w*dpr);
+      cvs.height = (h*dpr);
+      const ctx = cvs.getContext?.('2d');
+      if (ctx && ctx.setTransform) ctx.setTransform(dpr,0,0,dpr,0,0); // scale once
+      // If your engine already handles scaling, skip setTransform and use your own resize path.
+      if (window.onGameResize) window.onGameResize(w, h, dpr);
+    }
+  }
+
+  // Overlay toggle
+  function wireUI(){
+    const gear = document.getElementById('gearOverlay');
+    const bar  = document.getElementById('mobileBar');
+    const btn  = document.getElementById('btnGear');
+    const rot  = document.getElementById('btnRotateHint');
+
+    if (!gear || !btn || !bar) return;
+
+    function syncBars(){
+      const mobile = isMobile();
+      bar.style.display = mobile ? '' : 'none';
+      // Show rotate hint if portrait and your game prefers landscape
+      const portrait = window.innerHeight > window.innerWidth;
+      rot.style.display = (mobile && portrait) ? '' : 'none';
+      if (!mobile) gear.classList.remove('open');
+    }
+
+    btn.addEventListener('click', () => {
+      gear.classList.toggle('open');
+    });
+
+    // Close when tapping outside sheet
+    document.addEventListener('click', (ev) => {
+      const mobile = isMobile();
+      if (!mobile) return;
+      const gearOpen = gear.classList.contains('open');
+      if (!gearOpen) return;
+      const inside = gear.contains(ev.target) || btn.contains(ev.target);
+      if (!inside) gear.classList.remove('open');
+    }, { passive:true });
+
+    // Swipe-down to close (very simple)
+    let startY = null;
+    gear.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive:true });
+    gear.addEventListener('touchmove',  (e) => {
+      if (startY == null) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 30) gear.classList.remove('open');
+    }, { passive:true });
+
+    // Initial
+    syncBars();
+    window.addEventListener('resize', syncBars, { passive:true });
+    window.addEventListener('orientationchange', syncBars);
+  }
+
+  // Prevent the page from scrolling when interacting with the canvas
+  function lockScrollOnCanvas(){
+    const cvs = document.getElementById('gameCanvas') || document.querySelector('#game canvas, canvas.game');
+    if (!cvs) return;
+    // allow two-finger scroll, block single-finger (common pattern)
+    cvs.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1) e.preventDefault();
+    }, { passive:false });
+  }
+
+  // Initialize
+  function initMobile(){
+    setMobileFlag();
+    fitCanvas();
+    wireUI();
+    lockScrollOnCanvas();
+  }
+
+  window.addEventListener('resize', () => { setMobileFlag(); fitCanvas(); }, { passive:true });
+  window.addEventListener('orientationchange', () => { setMobileFlag(); fitCanvas(); });
+
+  // Run once DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobile);
+  } else {
+    initMobile();
+  }
+})();
+</script>
+
+
+
+</body>
+</html>
