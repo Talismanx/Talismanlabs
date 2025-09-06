@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Talisman Labs — Play, Build, Explore</title>
+
+  <!-- SEO / Social -->
+  <meta name="description" content="Talisman Labs: bite‑size browser games and experimental AI tools. Jump in, play a round, and peek behind the curtain." />
+  <meta property="og:title" content="Talisman Labs — Play, Build, Explore" />
+  <meta property="og:description" content="Jump into Boss Raider, UnlimiFish, and Countermeasures. Built in public by Talisman." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="talismanlabs.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png" />
+
+  <!-- Google Fonts for variable font weights -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (CDN build for static hosting) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { inter: ['Inter', 'ui-sans-serif', 'system-ui', 'Arial'] },
+          colors: {
+            bg:  { DEFAULT:'#060912',  softer:'#0b1222', soft:'#0e1830' },
+            ink: { DEFAULT:'#e7f0ff',  mute:'#9fb6d9',   dim:'#6e87af' },
+            prim:{ DEFAULT:'#7cc6ff',  alt:'#a0f0ff' },
+            acc: { DEFAULT:'#b389ff' },
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04)',
+            'glow-intense': '0 0 0 1px rgba(124,198,255,.2), 0 20px 60px rgba(124,198,255,.3), inset 0 1px 0 rgba(255,255,255,.08)',
+            'float': '0 25px 50px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.08)',
+          },
+          animation: {
+            'float': 'float 6s ease-in-out infinite',
+            'float-delayed': 'float 6s ease-in-out infinite 2s',
+            'float-slow': 'float 8s ease-in-out infinite',
+            'pulse-glow': 'pulseGlow 3s ease-in-out infinite',
+            'gradient-shift': 'gradientShift 4s ease infinite',
+            'parallax': 'parallax 20s linear infinite',
+            'breathe': 'breathe 4s ease-in-out infinite',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Enhanced glassmorphism with layered transparency */
+    .glass {
+      background: linear-gradient(135deg, 
+        rgba(255,255,255,.12) 0%, 
+        rgba(255,255,255,.08) 50%, 
+        rgba(255,255,255,.04) 100%);
+      backdrop-filter: blur(12px) saturate(180%);
+      border: 1px solid rgba(255,255,255,.1);
+    }
+
+    .glass-intense {
+      background: linear-gradient(135deg, 
+        rgba(124,198,255,.15) 0%, 
+        rgba(179,137,255,.12) 50%, 
+        rgba(255,255,255,.08) 100%);
+      backdrop-filter: blur(16px) saturate(200%);
+      border: 1px solid rgba(124,198,255,.2);
+    }
+
+    /* Enhanced button styles with gradient borders */
+    .btn { 
+      @apply inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-semibold transition-all duration-300 ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #7cc6ff, #b389ff, #7cc6ff);
+      background-size: 200% 200%;
+      color: #000;
+      animation: gradient-shift 4s ease infinite;
+      box-shadow: 0 8px 25px rgba(124,198,255,.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 35px rgba(124,198,255,.4);
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.15);
+      color: #e7f0ff;
+      position: relative;
+    }
+
+    .btn-ghost::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(124,198,255,.3), rgba(179,137,255,.3));
+      border-radius: inherit;
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .btn-ghost:hover::before {
+      opacity: 1;
+    }
+
+    .btn-ghost:hover {
+      transform: translateY(-2px);
+      background: rgba(255,255,255,.08);
+      border-color: rgba(124,198,255,.3);
+    }
+
+    /* Enhanced card styles with 3D transforms */
+    .card { 
+      @apply glass rounded-3xl transition-all duration-500 ease-out;
+      transform-style: preserve-3d;
+      perspective: 1000px;
+    }
+
+    .card-float {
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .card:hover {
+      transform: translateY(-8px) rotateX(5deg) rotateY(-2deg);
+      box-shadow: 0 25px 50px rgba(0,0,0,.3), 
+                  0 0 0 1px rgba(124,198,255,.2),
+                  0 0 30px rgba(124,198,255,.15);
+    }
+
+    .card-game:hover {
+      transform: translateY(-12px) rotateX(8deg) rotateY(-3deg) scale(1.02);
+    }
+
+    /* Animated gradient text effects */
+    .text-gradient {
+      background: linear-gradient(135deg, #7cc6ff, #b389ff, #a0f0ff);
+      background-size: 200% 200%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradient-shift 3s ease infinite;
+    }
+
+    .text-glow {
+      text-shadow: 0 0 20px rgba(124,198,255,.5), 
+                   0 0 40px rgba(124,198,255,.3),
+                   0 0 60px rgba(124,198,255,.1);
+    }
+
+    /* Logo breathing animation */
+    .logo-breathe {
+      animation: breathe 4s ease-in-out infinite;
+    }
+
+    /* Floating particles */
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .particle {
+      position: absolute;
+      background: rgba(124,198,255,.1);
+      border-radius: 50%;
+      animation: float-slow 15s ease-in-out infinite;
+    }
+
+    .particle:nth-child(2n) {
+      background: rgba(179,137,255,.08);
+      animation-delay: -5s;
+    }
+
+    .particle:nth-child(3n) {
+      background: rgba(160,240,255,.06);
+      animation-delay: -10s;
+    }
+
+    /* Geometric shapes */
+    .shape {
+      position: absolute;
+      border-radius: 30%;
+      background: linear-gradient(45deg, rgba(124,198,255,.05), rgba(179,137,255,.03));
+      animation: parallax 25s linear infinite;
+    }
+
+    /* Enhanced background with parallax */
+    body {
+      background: #060912;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      pointer-events: none;
+      z-index: -2;
+      background-image:
+        radial-gradient(1000px 700px at 70% 0%, rgba(124,198,255,.25) 0%, transparent 60%),
+        radial-gradient(800px 600px at 10% 35%, rgba(179,137,255,.22) 0%, transparent 55%),
+        radial-gradient(700px 500px at 80% 70%, rgba(124,198,255,.18) 0%, transparent 60%),
+        radial-gradient(600px 400px at 30% 85%, rgba(179,137,255,.15) 0%, transparent 55%);
+      background-repeat: no-repeat;
+      filter: blur(0.5px);
+      animation:
+        glowPulse 18s ease-in-out infinite alternate,
+        glowDrift 60s ease-in-out infinite alternate;
+      transform-origin: 50% 50%;
+    }
+
+    /* Animation keyframes */
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 20px rgba(124,198,255,.3); }
+      50% { box-shadow: 0 0 40px rgba(124,198,255,.6); }
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes parallax {
+      0% { transform: translateX(-100px) translateY(-50px) rotate(0deg); }
+      100% { transform: translateX(calc(100vw + 100px)) translateY(50px) rotate(360deg); }
+    }
+
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    @keyframes glowPulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(1.08); opacity: 1; }
+    }
+
+    @keyframes glowDrift {
+      0% { background-position: 0px 0px, 0px 0px, 0px 0px, 0px 0px; }
+      100% { background-position: 30px -20px, -20px 25px, 25px 30px, -25px -15px; }
+    }
+
+    /* Tag enhancements */
+    .tag { 
+      @apply px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300;
+      background: rgba(255,255,255,.08);
+      border-color: rgba(255,255,255,.15);
+      color: #9fb6d9;
+    }
+
+    .tag:hover {
+      background: rgba(124,198,255,.15);
+      border-color: rgba(124,198,255,.3);
+      color: #e7f0ff;
+      transform: translateY(-1px);
+    }
+
+    /* Variable font weights for dynamic hierarchy */
+    .font-ultra { font-weight: 900; font-variation-settings: 'wght' 900; }
+    .font-bold-plus { font-weight: 800; font-variation-settings: 'wght' 800; }
+    .font-medium-plus { font-weight: 600; font-variation-settings: 'wght' 600; }
+
+    /* Scroll-triggered animations */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+/* Reusable background card styling for game tabs */
+.game-card{
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  background: #0b101d; /* fallback */
+  isolation: isolate;  /* ensure overlay layers work */
+}
+
+
+/* the screenshot layer */
+.game-card::before{
+  content:"";
+  position:absolute; inset:0;
+  background-image: var(--bg, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: scale(1.03);
+  filter: brightness(.75) saturate(1.05);
+  transition: transform .6s ease, filter .3s ease;
+  z-index: -2;
+}
+
+/* soft gradient wash for legibility */
+.game-card::after{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(60% 60% at 20% 10%, rgba(124,198,255,.18), transparent 60%),
+    radial-gradient(70% 60% at 90% 90%, rgba(179,137,255,.16), transparent 65%),
+    linear-gradient(180deg, rgba(6,9,18,0) 20%, rgba(6,9,18,.55) 65%, rgba(6,9,18,.8) 100%);
+  z-index: -1;
+}
+
+.game-card:hover::before{
+  transform: scale(1.07);
+  filter: brightness(.9) saturate(1.1);
+}
+
+/* optional: ensure inner content has breathing room on top of the bg */
+.game-card .inner{
+  padding: 16px;
+}
+
+
+
+  </style>
+</head>
+<body class="text-ink font-inter selection:bg-prim selection:text-black">
+  
+  <!-- Floating Particles -->
+  <div class="particles">
+    <div class="particle" style="width: 4px; height: 4px; top: 20%; left: 10%; animation-duration: 20s;"></div>
+    <div class="particle" style="width: 6px; height: 6px; top: 60%; left: 80%; animation-duration: 15s;"></div>
+    <div class="particle" style="width: 3px; height: 3px; top: 40%; left: 70%; animation-duration: 25s;"></div>
+    <div class="particle" style="width: 5px; height: 5px; top: 80%; left: 20%; animation-duration: 18s;"></div>
+    <div class="particle" style="width: 4px; height: 4px; top: 30%; left: 50%; animation-duration: 22s;"></div>
+  </div>
+
+  <!-- Geometric Shapes -->
+  <div class="shape" style="width: 100px; height: 100px; top: 10%; left: -50px; animation-duration: 30s;"></div>
+  <div class="shape" style="width: 60px; height: 60px; top: 70%; left: -30px; animation-duration: 40s; animation-delay: -10s;"></div>
+  <div class="shape" style="width: 80px; height: 80px; top: 40%; left: -40px; animation-duration: 35s; animation-delay: -20s;"></div>
+
+  <!-- Nav -->
+  <header class="sticky top-0 z-40 glass-intense">
+    <div class="mx-auto max-w-6xl px-4">
+      <div class="flex items-center justify-between py-4">
+        <a href="/" class="flex items-center gap-3 group">
+          <img src="talismanlabs.png" alt="Talisman Labs" class="h-9 w-9 rounded-xl ring-1 ring-white/10 group-hover:ring-prim transition-all duration-300 logo-breathe" onerror="this.style.display='none'" />
+          <span class="text-lg font-ultra tracking-wide text-glow">Talisman Labs</span>
+        </a>
+        <nav class="hidden md:flex items-center gap-6 text-ink-dim font-medium-plus">
+          <a class="hover:text-ink transition-colors duration-300" href="#games">Games</a>
+          <a class="hover:text-ink transition-colors duration-300" href="#about">About</a>
+          <a class="hover:text-ink transition-colors duration-300" href="#contact">Contact</a>
+        </nav>
+        <div class="flex items-center gap-3">
+          <a href="#games" class="btn btn-primary">Play Now</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+<section class="mx-auto max-w-6xl px-4 pt-10 md:pt-16">
+  <div class="grid md:grid-cols-2 gap-10 items-center">
+    <div class="fade-in">
+      <div class="flex gap-2 mb-4">
+        <span class="tag">Built in public</span>
+        <span class="tag">Fast & lightweight</span>
+        <span class="tag">Follow the development</span>
+      </div>
+      <h1 class="text-4xl md:text-6xl font-ultra leading-tight">
+        Tiny web games <span class="text-gradient text-glow">and other things</span>
+      </h1>
+      <p class="text-ink-mute mt-4 text-lg leading-relaxed font-medium-plus">
+        Drop into quick, hand-crafted browser games and experimental tools. No friction, no accounts—just click and play.
+      </p>
+      <div class="mt-7 flex flex-wrap gap-3">
+        <a class="btn btn-primary" href="#games">Browse all games</a>
+        <a class="btn btn-ghost" href="#about">What is Talisman Labs?</a>
+      </div>
+    </div>
+
+    <!-- Featured Game -->
+    <div class="card card-float p-4 md:p-6 fade-in game-card"
+         data-href="/bossraider.html"
+         tabindex="0" role="link" aria-label="Open Boss Raider">
+      <div class="aspect-video w-full rounded-2xl border border-white/10 bg-cover bg-center relative"
+           style="background-image: url('screenshot1.png');">
+        <div class="absolute inset-0 bg-black/50 rounded-2xl"></div>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <div class="text-center px-6">
+            <div class="text-sm uppercase tracking-widest text-ink-dim mb-2 font-bold-plus">Featured</div>
+            <h3 class="text-2xl font-ultra text-white text-glow">Boss Raider</h3>
+            <p class="text-ink-mute mt-1 font-medium-plus">Arcade boss-raiding in your browser.</p>
+            <a href="/bossraider.html" class="btn btn-primary mt-4">Play Boss Raider</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Games Grid -->
+<section id="games" class="mx-auto max-w-6xl px-4 py-14">
+  <div class="flex items-end justify-between mb-6 fade-in">
+    <h2 class="text-3xl md:text-4xl font-ultra text-gradient">Games & Experiments</h2>
+    <a href="#about" class="text-sm text-ink-dim hover:text-ink transition-colors duration-300 font-medium-plus">How these are made →</a>
+  </div>
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Boss Raider -->
+    <article class="card card-game game-card overflow-hidden fade-in"
+             style="--bg:url('screenshot1.png')"
+             data-href="/bossraider.html"
+             tabindex="0" role="link" aria-label="Open Boss Raider">
+      <div class="inner p-5">
+        <div class="text-xs text-ink-dim mb-1 font-bold-plus">Action • Rogue-lite</div>
+        <h3 class="text-xl font-ultra text-white text-glow">Boss Raider</h3>
+        <p class="text-ink-mute mt-1 font-medium-plus">WoW style boss raiding simulator with loot</p>
+        <div class="mt-4 flex gap-2">
+          <span class="tag">Keyboard</span><span class="tag">Masher</span>
+        </div>
+        <a href="/bossraider.html" class="btn btn-primary mt-5">Play</a>
+      </div>
+    </article>
+
+    <!-- UnlimiFish -->
+    <article class="card card-game game-card overflow-hidden fade-in"
+             style="--bg:url('screenshot2.png')"
+             data-href="/unlimifish.html"
+             tabindex="0" role="link" aria-label="Open UnlimiFish">
+      <div class="inner p-5">
+        <div class="text-xs text-ink-dim mb-1 font-bold-plus">Relax • Collect</div>
+        <h3 class="text-xl font-ultra text-white text-glow">UnlimiFish</h3>
+        <p class="text-ink-mute mt-1 font-medium-plus">Cozy casts, treasure hooks, legendary fish.</p>
+        <div class="mt-4 flex gap-2">
+          <span class="tag">Keyboard</span><span class="tag">Zen</span>
+        </div>
+        <a href="/unlimifish.html" class="btn btn-primary mt-5">Play</a>
+      </div>
+    </article>
+
+    <!-- Countermeasures -->
+    <article class="card card-game game-card overflow-hidden fade-in"
+             style="--bg:url('screenshot3.png')"
+             data-href="/countermeasures.html"
+             tabindex="0" role="link" aria-label="Open Countermeasures">
+      <div class="inner p-5">
+        <div class="text-xs text-ink-dim mb-1 font-bold-plus">Missile Avoider • Reflexes</div>
+        <h3 class="text-xl font-ultra text-white text-glow">Countermeasures</h3>
+        <p class="text-ink-mute mt-1 font-medium-plus">Avoid the missiles, upgrade, use flares</p>
+        <div class="mt-4 flex gap-2">
+          <span class="tag">Keyboard</span><span class="tag">Avoider</span>
+        </div>
+        <a href="/countermeasures.html" class="btn btn-primary mt-5">Play</a>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- Apps & Tools -->
+<section id="apps" class="mx-auto max-w-6xl px-4 py-14">
+  <div class="flex items-end justify-between mb-6 fade-in">
+    <h2 class="text-3xl md:text-4xl font-ultra text-gradient">Apps & Tools</h2>
+    <a href="#about" class="text-sm text-ink-dim hover:text-ink transition-colors duration-300 font-medium-plus">Learn more →</a>
+  </div>
+
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- SourceHorse -->
+    <article class="card card-game game-card overflow-hidden fade-in"
+             style="--bg:url('screenshot4.png')"
+             data-href="https://sourcehorse.site/"
+             tabindex="0" role="link" aria-label="Open SourceHorse">
+      <div class="inner p-5">
+        <div class="text-xs text-ink-dim mb-1 font-bold-plus">AI • Browser Assistant</div>
+        <h3 class="text-xl font-ultra text-white text-glow">SourceHorse</h3>
+        <p class="text-ink-mute mt-1 font-medium-plus">
+          Your AI-powered browsing fact-checker and assistant.
+        </p>
+        <div class="mt-4 flex gap-2">
+          <span class="tag">AI</span><span class="tag">Extension</span>
+        </div>
+        <a href="https://sourcehorse.site/" class="btn btn-primary mt-5">Try it</a>
+      </div>
+    </article>
+  </div>
+</section>
+
+
+
+
+  <!-- About -->
+  <section id="about" class="mx-auto max-w-6xl px-4 pb-16">
+    <div class="grid md:grid-cols-2 gap-8 items-center">
+      <div class="card p-6 fade-in">
+        <img src="talismanlabs.png" alt="" class="w-28 h-28 rounded-2xl ring-1 ring-white/10 mb-4 logo-breathe" onerror="this.style.display='none'">
+        <h3 class="text-2xl font-ultra text-gradient">Built by Talisman</h3>
+        <p class="text-ink-dim mt-2 leading-relaxed font-medium-plus">
+          A place where I can share my current projects, from games to neat or useful little tools.
+        </p>
+        <ul class="mt-4 space-y-2 text-ink-dim font-medium-plus">
+          <li>• Zero‑install browser builds</li>
+          <li>• Keyboard‑friendly controls</li>
+          <li>• Performance first, then polish</li>
+        </ul>
+      </div>
+      <div class="card p-6 fade-in">
+        <h4 class="text-lg font-bold-plus mb-2 text-gradient">What's here now</h4>
+        <ul class="grid grid-cols-1 gap-3 text-ink-dim">
+          <li class="flex items-center justify-between font-medium-plus">
+            <span>Boss Raider</span>
+            <a href="/Boss Raider" class="text-prim hover:underline transition-colors duration-300">Play →</a>
+          </li>
+          <li class="flex items-center justify-between font-medium-plus">
+            <span>UnlimiFish</span>
+            <a href="/unlimifish" class="text-prim hover:underline transition-colors duration-300">Play →</a>
+          </li>
+          <li class="flex items-center justify-between font-medium-plus">
+            <span>Countermeasures</span>
+            <a href="/Countermeasures" class="text-prim hover:underline transition-colors duration-300">Play →</a>
+          </li>
+          <li class="flex items-center justify-between font-medium-plus">
+            <span>SourceHorse</span>
+            <a href="https://sourcehorse.site/" class="text-prim hover:underline transition-colors duration-300">Try →</a>
+          </li>
+        </ul>
+
+        <h4 class="text-lg font-bold-plus mt-6 mb-2 text-gradient">What's next</h4>
+        <p class="text-ink-dim font-medium-plus">More games and fun projects</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact / Footer -->
+  <section id="contact" class="mx-auto max-w-6xl px-4 pb-20">
+    <div class="card p-6 md:p-8 text-center fade-in">
+      <h3 class="text-2xl font-ultra text-gradient">Want to give feedback or report a bug?</h3>
+      <p class="text-ink-dim mt-2 font-medium-plus">Open an issue on GitHub or DM me on X — I read every note.</p>
+      <div class="mt-5 flex justify-center gap-3">
+        <a href="https://github.com/Talismanx/Talismanlabs" class="btn btn-ghost" target="_blank" rel="noopener">GitHub</a>
+        <a href="mailto:hello@talismanlabs.dev" class="btn btn-primary">Email</a>
+      </div>
+    </div>
+
+    <footer class="text-center text-ink-dim mt-10 mb-8">
+      <div class="text-sm font-medium-plus">© <span id="y"></span> Talisman Labs</div>
+    </footer>
+  </section>
+
+  <script>
+    // Set footer year
+    document.getElementById('y').textContent = new Date().getFullYear();
+
+    // Make entire game cards clickable (but ignore real buttons/links inside)
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('.game-card[data-href]');
+  if (!card) return;
+
+  // Skip clicks on inner links/buttons
+  const interactive = e.target.closest('a, button');
+  if (interactive) return;
+
+  window.location.href = card.dataset.href;
+});
+
+// Keyboard accessibility (Enter / Space)
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.game-card[data-href]')) {
+    e.preventDefault();
+    window.location.href = e.target.dataset.href;
+  }
+});
+
+    
+    // Verify routes exist
+    ['Boss Raider','unlimifish','Countermeasures'].forEach(p=>{
+      fetch('/'+p, {method:'HEAD'}).then(r=>{
+        if(!r.ok){ console.warn('Heads up: /'+p+' should exist or be routed.'); }
+      }).catch(()=>{})
+    });
+
+    // Scroll-triggered animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, observerOptions);
+
+    // Observe all fade-in elements
+    document.querySelectorAll('.fade-in').forEach(el => {
+      observer.observe(el);
+    });
+
+    // Add staggered delays to game cards
+    document.querySelectorAll('.card-game').forEach((card, index) => {
+      card.style.transitionDelay = `${index * 0.1}s`;
+    });
+
+    // Enhanced parallax effect on scroll
+    let ticking = false;
+    
+    function updateParallax() {
+      const scrolled = window.pageYOffset;
+      const shapes = document.querySelectorAll('.shape');
+      const particles = document.querySelectorAll('.particle');
+      
+      shapes.forEach((shape, index) => {
+        const speed = 0.5 + (index * 0.1);
+        shape.style.transform = `translateY(${scrolled * speed}px) translateX(${scrolled * speed * 0.3}px)`;
+      });
+      
+      particles.forEach((particle, index) => {
+        const speed = 0.3 + (index * 0.05);
+        particle.style.transform = `translateY(${scrolled * speed}px)`;
+      });
+      
+      ticking = false;
+    }
+
+    function requestTick() {
+      if (!ticking) {
+        requestAnimationFrame(updateParallax);
+        ticking = true;
+      }
+    }
+
+    window.addEventListener('scroll', requestTick);
+  </script>
+<script defer src="/_vercel/insights/script.js"></script>
+
+</body>
+</html>
